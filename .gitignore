@@ -32,3 +32,4 @@ dist/
 # IDE / Misc
 .DS_Store
 .vscode/
+*.ipynb
