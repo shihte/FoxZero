@@ -151,7 +151,7 @@ def train_colab():
                 
             states, policies, values = zip(*batch)
             
-            states_t = torch.stack(states).to(device)
+            states_t = torch.stack([torch.from_numpy(s) for s in states]).to(device)
             policies_t = torch.stack([torch.tensor(p) for p in policies]).to(device)
             values_t = torch.tensor(values, dtype=torch.float32).unsqueeze(1).to(device)
             
