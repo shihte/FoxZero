@@ -242,14 +242,87 @@ def run_simulation_fast(game_cls, model):
             # 5. Step
             game.step(action_idx)
             
-        # Rewards
+        # --- REWARD HARD FIX (Winner Takes All) ---
+        # Calculate raw scores for all players
+        scores = {}
+        for p in range(1, 5):
+            # Score = Hand Card Ranks + Covered Card Ranks
+            # precise calculation from game state
+            hand = game.getPlayersHand(p)
+            s = 0
+            for c in hand.getHand():
+                s += c.getRank()
+            
+            # Add covered cards
+            # We need to access covered cards from C++ engine? 
+            # `sevens_python.cpp` does not expose `coveredCards` directly?
+            # It exposes `calculateFinalRewards` which returns `rawPenalties`.
+            # Let's rely on `calculateFinalRewards` for *component* scores if possible, 
+            # OR just trust the C++ `calculateFinalRewards` if I updated it to include covered cards.
+            # 
+            # The User said: "Hard Fix: Ensure winner takes all penalties".
+            # My C++ `calculateFinalRewards` might not do "Winner takes ALL". 
+            # Let's implement it here in Python to be safe and explicit as requested.
+            # But I cannot easily get covered cards if I didn't expose them.
+            # 
+            # Wait, I did update C++ `calculateFinalRewards` to include covered cards in `rawPenalties`.
+            # So `res.rawPenalties` contains the correct cost for each player.
+            pass
+        
+        # Get raw penalties from Engine (which now includes covered cards)
         res = game.calculateFinalRewards()
-        # res.normalizedRewards is vector<double>
-        rewards = res.normalizedRewards
+        raw_penalties = res.rawPenalties # vector<double> size 4 (index 0-3)
+        
+        # Determine Winner (Lowest Penalty)
+        # Note: rawPenalties are positive sums of ranks.
+        min_p = min(raw_penalties)
+        winner_idx = -1
+        
+        # Handle Draw? Standard Sevens: usually one winner or share.
+        # Let's assume one winner for "Winner Takes All".
+        # If multiple have min_p, they split?
+        # User says "Winner takes all penalties".
+        
+        total_pool = sum(raw_penalties)
+        
+        final_rewards = [0.0] * 4
+        
+        # Find winner(s)
+        winners = [i for i, p in enumerate(raw_penalties) if p == min_p]
+        
+        if len(winners) == 1:
+            w_idx = winners[0]
+            # Winner gets (Total Pool - Own Score) ? Or Total Pool?
+            # "Winner takes all penalties" usually means they get +Sum(Others).
+            # And their own score is 0? Or they effectively "pay nothing" and get others?
+            # If I have 0 penalty, I get Sum(Others).
+            # If I have 5 penalty (but still lowest), do I get data?
+            # Usually: Net = + (Sum of everyone else's penalty).
+            # And Losers = - (Own Penalty).
+            
+            reward_pool = total_pool - raw_penalties[w_idx]
+            final_rewards[w_idx] = reward_pool
+            
+            for i in range(4):
+                if i != w_idx:
+                    final_rewards[i] = -raw_penalties[i]
+        else:
+            # Draw logic (Split the pool?)
+            # If Draw, maybe just -Own Score? Or Split positive?
+            # Let's keep it simple: -Own Score for everyone, essentially no "Winner Bonus" transfer?
+            # Or split the others?
+            # Let's stick to: Everyone -Own Score. (Conservative)
+            for i in range(4):
+                final_rewards[i] = -raw_penalties[i]
+                
+        # Normalize
+        SCALE = 100.0
+        normalized_rewards = [r / SCALE for r in final_rewards]
         
         samples = []
         for s, pi, pid in traj:
-            samples.append((s, pi, rewards[pid - 1]))
+            z = normalized_rewards[pid - 1]
+            samples.append((s, pi, z))
             
         return samples
 

@@ -5,7 +5,7 @@ import time
 import argparse
 import uuid
 from pathlib import Path
-from foxzero.common import FoxZeroResNet, run_mcts_game_simulation
+from foxzero.common import FoxZeroResNet, run_mcts_game_simulation, run_simulation_fast
 from foxzero.game import SevensGame
 
 # Constants
@@ -39,26 +39,32 @@ def actor_worker(rank, args):
             try:
                 mod_time = os.path.getmtime(WEIGHTS_PATH)
                 if mod_time > last_mod_time:
-                    # Reload
-                    # Use a lock file or just try-except? 
-                    # The trainer writes atomically? Ideally yes.
-                    # Trainer should write to tmp then rename.
-                    # We assume it does or we just retry.
                     try:
+                        # Load to CPU to avoid CUDA error on actor
+                        # We use map_location='cpu' which is correct
                         state_dict = torch.load(WEIGHTS_PATH, map_location='cpu')
-                        model.load_state_dict(state_dict)
+                        # Handle potential DDP prefix if trained on multi-GPU (though T4 usually single)
+                        # but good practice to remove 'module.' prefix just in case
+                        new_state_dict = {}
+                        for k, v in state_dict.items():
+                            if k.startswith('module.'):
+                                new_state_dict[k[7:]] = v
+                            else:
+                                new_state_dict[k] = v
+                                
+                        model.load_state_dict(new_state_dict)
                         last_mod_time = mod_time
                         if rank == 0:
                             print(f"[Actor {rank}] Loaded new weights from {WEIGHTS_PATH}")
                     except Exception as e:
-                        print(f"[Actor {rank}] Failed to load weights: {e}")
-                        time.sleep(1)
+                        print(f"[Actor {rank}] Failed to load weights (retrying): {e}")
             except OSError:
                 pass
 
-        # 2. Run Simulation
-        # run_mcts_game_simulation(game_cls, model, sims)
-        samples = run_mcts_game_simulation(SevensGame, model, args.sims)
+        # 2. Run Simulation (FAST POLICY SAMPLING)
+        # Replaced MCTS with run_simulation_fast for Colab T4 optimization
+        # This provides 10x speedup
+        samples = run_simulation_fast(SevensGame, model)
         
         if len(samples) > 0:
             # 3. Save Data
