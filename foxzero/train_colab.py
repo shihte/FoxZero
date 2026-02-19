@@ -5,6 +5,12 @@ import time
 import os
 import numpy as np
 from pathlib import Path
+import sys
+
+# Add project root to sys.path so we can import foxzero
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
 from foxzero.common import FoxZeroResNet, run_simulation_fast
 from foxzero.game import SevensGame
