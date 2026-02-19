@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Trained weights
+*.pth
+*.pt
+
+# Data Pool and Logs
+data_pool/
+logs/
+train_log.csv
+
+# Environment
+.venv/
+venv/
+env/
+.env
+
+# IPO
+checkpoints/
