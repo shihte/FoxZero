@@ -93,7 +93,11 @@ def train_colab():
         torch.save(model.state_dict(), args.weights_path)
         
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scaler = torch.cuda.amp.GradScaler() 
+    # Use new AMP API if available, else fallback
+    try:
+        scaler = torch.amp.GradScaler('cuda')
+    except:
+        scaler = torch.cuda.amp.GradScaler()
     
     # Queue for data
     queue = mp.Queue(maxsize=100)
@@ -120,7 +124,8 @@ def train_colab():
     try:
         while True:
             # 1. Collect Data
-            while len(buffer) < BATCH_SIZE * 4:
+            # We strictly need at least BATCH_SIZE samples to train
+            while len(buffer) < BATCH_SIZE:
                 if not queue.empty():
                     game_samples = queue.get()
                     buffer.extend(game_samples)
@@ -128,10 +133,14 @@ def train_colab():
                     if games_collected % 10 == 0:
                         print(f"Collected {games_collected} games. Buffer size: {len(buffer)}")
                 else:
-                    if len(buffer) == 0:
-                        time.sleep(1)
-                    else:
-                        break
+                    # Queue empty, wait for workers
+                    time.sleep(1)
+            
+            # Opportunistically collect more if available (up to 4x batch)
+            while not queue.empty() and len(buffer) < BATCH_SIZE * 4:
+                game_samples = queue.get()
+                buffer.extend(game_samples)
+                games_collected += 1
             
             # 2. Prepare Batch
             indices = np.random.choice(len(buffer), BATCH_SIZE, replace=False)
