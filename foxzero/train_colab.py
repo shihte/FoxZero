@@ -121,6 +121,19 @@ def train_colab():
     total_steps = 0
     games_collected = 0
     
+    # Resume step count from log if exists
+    if os.path.exists(args.log_path):
+        try:
+            with open(args.log_path, 'r') as f:
+                lines = f.readlines()
+                if len(lines) > 1:
+                    last_line = lines[-1].strip().split(',')
+                    if len(last_line) > 0 and last_line[0].isdigit():
+                        total_steps = int(last_line[0])
+                        print(f"Resuming training from step {total_steps}")
+        except Exception as e:
+            print(f"Error reading log file: {e}")
+    
     try:
         while True:
             # 1. Collect Data
