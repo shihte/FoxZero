@@ -31,11 +31,11 @@ import csv
 NUM_WORKERS = 2 
 BATCH_SIZE = 512
 
-def colab_worker(queue, device, worker_id, weights_path):
+def colab_worker(queue, device, worker_id, weights_path, temperature=1.0, dirichlet=None):
     """
     Worker process to generate self-play data.
     """
-    print(f"Worker {worker_id} started on {device}")
+    print(f"Worker {worker_id} started on {device} (Temp={temperature}, Dirichlet={dirichlet})")
     model = FoxZeroResNet().to(device)
     model.eval()
     
@@ -57,7 +57,7 @@ def colab_worker(queue, device, worker_id, weights_path):
         
         # 2. Run Simulation
         try:
-            samples = run_simulation_fast(SevensGame, model)
+            samples = run_simulation_fast(SevensGame, model, temperature=temperature, dirichlet_alpha=dirichlet)
             if len(samples) > 0:
                 queue.put(samples)
         except Exception as e:
@@ -68,6 +68,8 @@ def train_colab():
     parser = argparse.ArgumentParser()
     parser.add_argument("--weights_path", type=str, default="foxzero_weights.pth")
     parser.add_argument("--log_path", type=str, default="train_log.csv")
+    parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature")
+    parser.add_argument("--dirichlet", type=float, default=0.3, help="Dirichlet noise alpha (0 to disable)")
     args = parser.parse_args()
     
     mp.set_start_method('spawn', force=True)
@@ -76,6 +78,7 @@ def train_colab():
     print(f"Training on {device}")
     print(f"Weights Path: {args.weights_path}")
     print(f"Log Path: {args.log_path}")
+    print(f"Exploration: Temp={args.temperature}, Dirichlet={args.dirichlet}")
     
     # Main Model
     model = FoxZeroResNet().to(device)
@@ -104,8 +107,13 @@ def train_colab():
     
     # Start Workers
     processes = []
+    
+    # Handle Dirichlet Disable (0)
+    d_alpha = args.dirichlet
+    if d_alpha == 0: d_alpha = None
+    
     for i in range(NUM_WORKERS):
-        p = mp.Process(target=colab_worker, args=(queue, 'cpu', i, args.weights_path))
+        p = mp.Process(target=colab_worker, args=(queue, 'cpu', i, args.weights_path, args.temperature, d_alpha))
         p.start()
         processes.append(p)
         

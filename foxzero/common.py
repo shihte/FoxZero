@@ -157,7 +157,7 @@ def run_mcts_game_simulation(game_cls, model, sims):
     else:
         return []
 
-def run_simulation_fast(game_cls, model):
+def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None):
     """
     Runs a simulation using direct Model Policy Sampling (No MCTS search).
     Optimized for Colab CPU workers where MCTS is too slow.
@@ -196,6 +196,15 @@ def run_simulation_fast(game_cls, model):
             # 2. Model
             with torch.no_grad():
                 p_logits, _ = model(inp)
+                
+            # TEMPERATURE CONTROL
+            # Decrease temp in endgame to reduce randomness
+            current_temp = temperature
+            if len(traj) >= 30:
+                current_temp = 0.5 # Anneal
+                
+            # Apply Temp to Logits (before Softmax)
+            p_logits = p_logits / current_temp
             
             p_probs = torch.softmax(p_logits, dim=1).cpu().numpy().flatten()
             
@@ -209,12 +218,20 @@ def run_simulation_fast(game_cls, model):
                 if legal_mask.sum() > 0:
                     p_probs = legal_mask / legal_mask.sum()
                 else:
-                    # No moves? Should be covered?
-                    # `get_legal_moves` in C++ uses `getAllValidMoves`.
-                    # I updated `getAllValidMoves` to include Cover cards (all hand) if no board moves.
-                    # So legal_mask should never be empty unless hand is empty (game over).
                     break
-            
+                    
+            # DIRICHLET NOISE (Exploration)
+            # Only add noise in early game (first 30 moves) and if alpha is set
+            if dirichlet_alpha is not None and len(traj) < 30:
+                noise = np.random.dirichlet([dirichlet_alpha] * 52)
+                p_probs = 0.75 * p_probs + 0.25 * noise
+                # Re-mask and Re-normalize to ensure legality
+                p_probs = p_probs * legal_mask
+                if p_probs.sum() > 0:
+                    p_probs /= p_probs.sum()
+                else:
+                     p_probs = legal_mask / legal_mask.sum()
+
             # 4. Sample
             action_idx = np.random.choice(52, p=p_probs)
             

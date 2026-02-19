@@ -1,5 +1,6 @@
 import torch
 import torch.multiprocessing as mp
+import numpy as np
 import os
 import time
 import argparse
@@ -23,6 +24,7 @@ def actor_worker(rank, args):
     # Seeds
     seed = int(time.time()) + rank
     torch.manual_seed(seed)
+    np.random.seed(seed)
     
     print(f"[Actor {rank}] Started on CPU. PID: {os.getpid()}")
     
@@ -64,7 +66,12 @@ def actor_worker(rank, args):
         # 2. Run Simulation (FAST POLICY SAMPLING)
         # Replaced MCTS with run_simulation_fast for Colab T4 optimization
         # This provides 10x speedup
-        samples = run_simulation_fast(SevensGame, model)
+        # Extract exploration params
+        temp = args.temperature
+        alpha = args.dirichlet
+        if alpha == 0: alpha = None
+        
+        samples = run_simulation_fast(SevensGame, model, temperature=temp, dirichlet_alpha=alpha)
         
         if len(samples) > 0:
             # 3. Save Data
@@ -88,14 +95,17 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--actors", type=int, default=6)
-    parser.add_argument("--sims", type=int, default=200)
+    parser.add_argument("--sims", type=int, default=200) # Not used in fast mode but kept for compat
+    parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature")
+    parser.add_argument("--dirichlet", type=float, default=0.3, help="Dirichlet noise alpha (0 to disable)")
     args = parser.parse_args()
     
     # Ensure data pool exists
+    import numpy as np # Ensure numpy is imported in main
     os.makedirs(DATA_POOL_DIR, exist_ok=True)
     
     print(f"Starting {args.actors} Actors...")
-    print(f"Simulations: {args.sims}")
+    print(f"Exploration: Temp={args.temperature}, Dirichlet={args.dirichlet}")
     print(f"Data Pool: {os.path.abspath(DATA_POOL_DIR)}")
     
     processes = []
