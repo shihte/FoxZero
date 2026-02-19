@@ -6,7 +6,7 @@ import os
 import numpy as np
 from pathlib import Path
 
-from foxzero.common import FoxZeroResNet, run_mcts_game_simulation
+from foxzero.common import FoxZeroResNet, run_simulation_fast
 from foxzero.game import SevensGame
 
 # Configuration for Colab T4
@@ -14,13 +14,12 @@ from foxzero.game import SevensGame
 # CPU count is usually 2.
 NUM_WORKERS = 2 
 BATCH_SIZE = 512
-MCTS_SIMS = 50 # Lower sims for faster generation, rely on massive data
-# (AlphaZero typically uses 800, but 50 is fine for initial learning of rules)
+# MCTS_SIMS not needed for fast mode
 
 def colab_worker(queue, device, worker_id):
     """
     Worker process to generate self-play data.
-    Runs on CPU.
+    Runs on CPU using Fast Model Sampling (No MCTS).
     """
     print(f"Worker {worker_id} started on {device}")
     model = FoxZeroResNet().to(device)
@@ -45,14 +44,14 @@ def colab_worker(queue, device, worker_id):
                 print(f"Worker {worker_id} failed to load weights: {e}")
                 time.sleep(1)
         
-        # 2. Run Simulation
-        # Use SevensGame logic
+        # 2. Run Simulation (Fast Mode)
         try:
-            samples = run_mcts_game_simulation(SevensGame, model, sims=MCTS_SIMS)
+            samples = run_simulation_fast(SevensGame, model)
             if len(samples) > 0:
                 queue.put(samples)
         except Exception as e:
             print(f"Worker {worker_id} error in simulation: {e}")
+            time.sleep(1)
 
 def train_colab():
     mp.set_start_method('spawn', force=True)

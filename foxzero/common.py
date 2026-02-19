@@ -156,3 +156,84 @@ def run_mcts_game_simulation(game_cls, model, sims):
         return final_samples
     else:
         return []
+
+def run_simulation_fast(game_cls, model):
+    """
+    Runs a simulation using direct Model Policy Sampling (No MCTS search).
+    Optimized for Colab CPU workers where MCTS is too slow.
+    Uses 'SevensGame' logic.
+    """
+    game = game_cls()
+    model.eval()
+    
+    # Store trajectory
+    traj = [] # (state_tensor, policy_probs, player_id)
+    
+    device = next(model.parameters()).device
+    
+    while not game.is_game_over():
+        current_player = game.current_player_number
+        state_tensor = game.get_state_tensor(current_player)
+        
+        # Model Inference
+        # Add batch dim manually: (1, 11, 4, 13)
+        inp = torch.tensor(state_tensor, dtype=torch.float32).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            p_logits, _ = model(inp)
+            
+        # Logits -> Probs
+        p_probs = torch.softmax(p_logits, dim=1).cpu().numpy().flatten()
+        
+        # Mask Invalid Moves
+        valid_moves = game.get_all_valid_moves(current_player)
+        legal_mask = np.zeros(52, dtype=np.float32)
+        
+        if len(valid_moves) == 0:
+            # Should not happen in standard play (must cover)
+            # But just in case
+            pass
+        else:
+            for card in valid_moves:
+                s, r = card.to_tensor_index()
+                idx = s * 13 + r
+                legal_mask[idx] = 1.0
+                
+        # Apply mask
+        p_probs = p_probs * legal_mask
+        
+        sum_p = p_probs.sum()
+        if sum_p > 0:
+            p_probs /= sum_p
+        else:
+            # Fallback to random legal
+            if legal_mask.sum() > 0:
+                p_probs = legal_mask / legal_mask.sum()
+            else:
+                 # No moves? Game logic should handle this.
+                break 
+        
+        # Sample Action
+        action_idx = np.random.choice(52, p=p_probs)
+        
+        # Decode action
+        s_idx = action_idx // 13
+        r_idx = action_idx % 13
+        card = Card(s_idx + 1, r_idx + 1)
+        
+        # Record trajectory (Policy Target = Model Probabiltiy)
+        # This reinforces the model's own preference but filtered by legality and outcome
+        traj.append((state_tensor, p_probs, current_player))
+        
+        # Move
+        game.make_move(card)
+        game.next_player()
+        
+    # Rewards
+    final_rewards = game.calculate_final_rewards()
+    samples = []
+    for s, pi, p_idx in traj:
+        z = final_rewards[p_idx - 1]
+        samples.append((s, pi, z))
+        
+    return samples
