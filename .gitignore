@@ -20,3 +20,15 @@ env/
 
 # IPO
 checkpoints/
+
+# Compiled Extensions
+*.so
+*.dylib
+build/
+var/
+dist/
+*.egg-info/
+
+# IDE / Misc
+.DS_Store
+.vscode/

@@ -161,79 +161,164 @@ def run_simulation_fast(game_cls, model):
     """
     Runs a simulation using direct Model Policy Sampling (No MCTS search).
     Optimized for Colab CPU workers where MCTS is too slow.
-    Uses 'SevensGame' logic.
+    Uses 'sevens_core' C++ engine if available, else 'SevensGame' (Python).
     """
-    game = game_cls()
+    # Try C++ Core
+    cpp_engine = None
+    try:
+        import sevens_core
+        # specific check if game_cls is meant to be Python or if we can swap
+        # We prefer C++ if available and game_cls is standard SevensGame
+        if game_cls.__name__ == 'SevensGame' or game_cls is None:
+             cpp_engine = sevens_core.SevensEngine()
+    except ImportError:
+        pass
+        
     model.eval()
-    
-    # Store trajectory
+    device = next(model.parameters()).device
     traj = [] # (state_tensor, policy_probs, player_id)
     
-    device = next(model.parameters()).device
-    
-    while not game.is_game_over():
-        current_player = game.current_player_number
-        state_tensor = game.get_state_tensor(current_player)
-        
-        # Model Inference
-        # Add batch dim manually: (1, 11, 4, 13)
-        inp = torch.tensor(state_tensor, dtype=torch.float32).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            p_logits, _ = model(inp)
+    if cpp_engine:
+        # --- C++ PATH ---
+        game = cpp_engine
+        while not game.hasPlayerWon(game.getCurrentPlayerNumber()): # check generic game over? game.hasPlayerWon checks specific player.
+            # We need isGameOver? C++ SevensGame doesn't have global isGameOver, check turn count?
+            # Or iterate all players? SevensGame ends when one player wins (has 0 cards).
+            # My binding `hasPlayerWon` takes player num.
+            # Actually standard Sevens ends when ONE player empties hand? Yes.
+            # But the loop condition needs to be checked.
+            # C++ `calculateFinalRewards` handles winner determination.
+            # I need a way to check if game is over in loop.
+            # `isValidMove` checks if we can play.
+            # Turn limit?
+            # Let's check `hasPlayerWon` for any player?
+            # We can expose `isGameOver` in C++ later, but for now loop 1..4
             
-        # Logits -> Probs
-        p_probs = torch.softmax(p_logits, dim=1).cpu().numpy().flatten()
-        
-        # Mask Invalid Moves
-        valid_moves = game.get_all_valid_moves(current_player)
-        legal_mask = np.zeros(52, dtype=np.float32)
-        
-        if len(valid_moves) == 0:
-            # Should not happen in standard play (must cover)
-            # But just in case
-            pass
-        else:
-            for card in valid_moves:
-                s, r = card.to_tensor_index()
-                idx = s * 13 + r
-                legal_mask[idx] = 1.0
-                
-        # Apply mask
-        p_probs = p_probs * legal_mask
-        
-        sum_p = p_probs.sum()
-        if sum_p > 0:
-            p_probs /= sum_p
-        else:
-            # Fallback to random legal
-            if legal_mask.sum() > 0:
-                p_probs = legal_mask / legal_mask.sum()
+            # Optimization: check if any player has 0 cards.
+            game_over = False
+            for p in range(1, 5):
+                if game.hasPlayerWon(p):
+                    game_over = True
+                    break
+            if game_over: break
+            
+            p_idx = game.getCurrentPlayerNumber() # 1-4
+            
+            # 1. Observation
+            obs_list = game.get_observation(p_idx) # Flat list
+            # Reshape (11, 4, 13)
+            # It returns flat 11*4*13.
+            state_tensor = np.array(obs_list, dtype=np.float32).reshape(11, 4, 13)
+            
+            inp = torch.tensor(state_tensor).unsqueeze(0).to(device)
+            
+            # 2. Model
+            with torch.no_grad():
+                p_logits, _ = model(inp)
+            
+            p_probs = torch.softmax(p_logits, dim=1).cpu().numpy().flatten()
+            
+            # 3. Mask
+            legal_mask = np.array(game.get_legal_moves(), dtype=np.float32) # Returns flat 52-float mask
+            
+            p_probs = p_probs * legal_mask
+            if p_probs.sum() > 0:
+                p_probs /= p_probs.sum()
             else:
-                 # No moves? Game logic should handle this.
-                break 
+                if legal_mask.sum() > 0:
+                    p_probs = legal_mask / legal_mask.sum()
+                else:
+                    # No moves? Should be covered?
+                    # `get_legal_moves` in C++ uses `getAllValidMoves`.
+                    # I updated `getAllValidMoves` to include Cover cards (all hand) if no board moves.
+                    # So legal_mask should never be empty unless hand is empty (game over).
+                    break
+            
+            # 4. Sample
+            action_idx = np.random.choice(52, p=p_probs)
+            
+            traj.append((state_tensor, p_probs, p_idx))
+            
+            # 5. Step
+            game.step(action_idx)
+            
+        # Rewards
+        res = game.calculateFinalRewards()
+        # res.normalizedRewards is vector<double>
+        rewards = res.normalizedRewards
         
-        # Sample Action
-        action_idx = np.random.choice(52, p=p_probs)
+        samples = []
+        for s, pi, pid in traj:
+            samples.append((s, pi, rewards[pid - 1]))
+            
+        return samples
+
+    else:
+        # --- PYTHON PATH (Legacy/Fallback) ---
+        game = game_cls()
         
-        # Decode action
-        s_idx = action_idx // 13
-        r_idx = action_idx % 13
-        card = Card(s_idx + 1, r_idx + 1)
-        
-        # Record trajectory (Policy Target = Model Probabiltiy)
-        # This reinforces the model's own preference but filtered by legality and outcome
-        traj.append((state_tensor, p_probs, current_player))
-        
-        # Move
-        game.make_move(card)
-        game.next_player()
-        
-    # Rewards
-    final_rewards = game.calculate_final_rewards()
-    samples = []
-    for s, pi, p_idx in traj:
-        z = final_rewards[p_idx - 1]
-        samples.append((s, pi, z))
-        
-    return samples
+        while not game.is_game_over():
+            current_player = game.current_player_number
+            state_tensor = game.get_state_tensor(current_player)
+            
+            # Model Inference
+            # Add batch dim manually: (1, 11, 4, 13)
+            inp = torch.tensor(state_tensor, dtype=torch.float32).unsqueeze(0).to(device)
+            
+            with torch.no_grad():
+                p_logits, _ = model(inp)
+                
+            # Logits -> Probs
+            p_probs = torch.softmax(p_logits, dim=1).cpu().numpy().flatten()
+            
+            # Mask Invalid Moves
+            valid_moves = game.get_all_valid_moves(current_player)
+            legal_mask = np.zeros(52, dtype=np.float32)
+            
+            if len(valid_moves) == 0:
+                # Should not happen in standard play (must cover)
+                pass
+            else:
+                for card in valid_moves:
+                    s, r = card.to_tensor_index()
+                    idx = s * 13 + r
+                    legal_mask[idx] = 1.0
+                    
+            # Apply mask
+            p_probs = p_probs * legal_mask
+            
+            sum_p = p_probs.sum()
+            if sum_p > 0:
+                p_probs /= sum_p
+            else:
+                # Fallback to random legal
+                if legal_mask.sum() > 0:
+                    p_probs = legal_mask / legal_mask.sum()
+                else:
+                     # No moves? Game logic should handle this.
+                    break 
+            
+            # Sample Action
+            action_idx = np.random.choice(52, p=p_probs)
+            
+            # Decode action
+            s_idx = action_idx // 13
+            r_idx = action_idx % 13
+            card = Card(s_idx + 1, r_idx + 1)
+            
+            # Record trajectory (Policy Target = Model Probabiltiy)
+            # This reinforces the model's own preference but filtered by legality and outcome
+            traj.append((state_tensor, p_probs, current_player))
+            
+            # Move
+            game.make_move(card)
+            game.next_player()
+            
+        # Rewards
+        final_rewards = game.calculate_final_rewards()
+        samples = []
+        for s, pi, p_idx in traj:
+            z = final_rewards[p_idx - 1]
+            samples.append((s, pi, z))
+            
+        return samples
