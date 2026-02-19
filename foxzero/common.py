@@ -181,26 +181,7 @@ def run_simulation_fast(game_cls, model):
     if cpp_engine:
         # --- C++ PATH ---
         game = cpp_engine
-        while not game.hasPlayerWon(game.getCurrentPlayerNumber()): # check generic game over? game.hasPlayerWon checks specific player.
-            # We need isGameOver? C++ SevensGame doesn't have global isGameOver, check turn count?
-            # Or iterate all players? SevensGame ends when one player wins (has 0 cards).
-            # My binding `hasPlayerWon` takes player num.
-            # Actually standard Sevens ends when ONE player empties hand? Yes.
-            # But the loop condition needs to be checked.
-            # C++ `calculateFinalRewards` handles winner determination.
-            # I need a way to check if game is over in loop.
-            # `isValidMove` checks if we can play.
-            # Turn limit?
-            # Let's check `hasPlayerWon` for any player?
-            # We can expose `isGameOver` in C++ later, but for now loop 1..4
-            
-            # Optimization: check if any player has 0 cards.
-            game_over = False
-            for p in range(1, 5):
-                if game.hasPlayerWon(p):
-                    game_over = True
-                    break
-            if game_over: break
+        while not game.isGameOver():
             
             p_idx = game.getCurrentPlayerNumber() # 1-4
             

@@ -52,6 +52,14 @@ PYBIND11_MODULE(sevens_core, m) {
       .def("getCurrentPlayerNumber", &SevensGame::getCurrentPlayerNumber)
       .def("calculateFinalRewards", &SevensGame::calculateFinalRewards)
       .def("getPassRecord", &SevensGame::getPassRecord)
+      .def("isGameOver",
+           [](const SevensGame &g) {
+             for (const auto &h : g.getHands()) {
+               if (h.getCardCount() > 0)
+                 return false;
+             }
+             return true;
+           })
       .def("get_legal_moves",
            [](const SevensGame &g) {
              std::vector<float> mask(52, 0.0f);
