@@ -651,6 +651,12 @@
 
                     // Wire Apply block
                     const applyBtn = document.getElementById('apply-btn');
+
+                    // Reset apply button state from previous usage
+                    applyBtn.disabled = false;
+                    applyBtn.classList.remove('opacity-50', 'pointer-events-none');
+                    applyBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>套用此建議`;
+
                     applyBtn.onclick = () => { applySuggestion(out.suit, out.rank, out.is_play); };
 
                 } else if (j.output) {
