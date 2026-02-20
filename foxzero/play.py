@@ -79,7 +79,12 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
         root.children[card] = InferenceMCTSNode(parent=root, prior=prior)
         
     # Main Loop
-    for _ in range(simulations):
+    import sys
+    for i in range(simulations):
+        if (i + 1) % 10 == 0:
+            print(f"\r🔍 MCTS 思考中... {i + 1}/{simulations}", end="")
+            sys.stdout.flush()
+
         node = root
         
         # 1. Determinization / Copy
@@ -222,38 +227,20 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
         # If terminal:
         if scratch_game.is_game_over():
             rewards = scratch_game.calculate_final_rewards()
-            # Backprop real rewards
-            curr = node
-            sim_player = leaf_player # This might be arbitrary if game over
-            # Actually, we climb up. Each node represents a state where 'prev_player' made a move to get here.
-            # The 'node' value should be helpfulness for 'node.parent.player'.
+            # standard backprop below expects 'value' for 'leaf_player'
+            # rewards is 0-indexed array [p1, p2, p3, p4]
+            # leaf_player is 1-based index (1..4)
+            r = rewards[leaf_player - 1]
+            # Normalize reward? rewards are like +100, -10, etc.
+            # MCTS expects [-1, 1].
+            # Sigmoid or Tanh? Or just sign?
+            # Sevens rewards: Winner ~ +100. Losers ~ -10 to -50.
+            # Let's simple clamp or sign.
+            if r > 0: value = 1.0
+            elif r < 0: value = -1.0
+            else: value = 0.0
             
-            # Let's use simple logic:
-            # We have vector 'rewards' [p1, p2, p3, p4].
-            while curr.parent is not None:
-                # Move led to 'curr' was made by 'prev_player'
-                # We need to identify who made the move.
-                # Root is 'current_player'.
-                # Depth 1 child is after 'current_player' moved.
-                # So edge Root->Child is 'current_player' move.
-                # We update Child with 'current_player' reward.
-                
-                # Need to track player at each depth? Or just reconstruct.
-                # Sevens is strictly rotational 1->2->3->4...
-                # Current at Root = P_root.
-                # Edge Root->Child: P_root acted.
-                # Child state: P_root+1's turn.
-                
-                # So, Child node accumulates value for P_root.
-                # Its parent (Root) was P_root's state.
-                
-                # We can trace back from current game state? No, scratch_game is mutated.
-                # We can strictly alternate.
-                pass
-                
-                # Simple Hack:
-                # Just use N-step return or Value Head mixing.
-                # For inference "God Mode", just use the Value Head for non-terminal.
+            # Fall through to standard backprop using this 'value'
         
         # Simplified Backprop for Inference:
         # Assume 2-player zero-sum dynamic? No, it's 4-player.
@@ -268,7 +255,13 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
         curr = node
         curr_val = value # Value for 'leaf_player'
         
+        depth_sanity = 0
         while curr.parent is not None:
+            depth_sanity += 1
+            if depth_sanity > 60:
+                print(f"\n⚠️ MCTS Backprop Loop Detected! Depth {depth_sanity}. Breaking.")
+                break
+
             # Determine return for the player who acted to reach 'curr'
             # (which is curr.parent's player)
             # If curr_val is for 'leaf_player', and we move up...
@@ -278,6 +271,8 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
             curr.value_sum += curr_val
             curr.visits += 1
             curr = curr.parent
+
+    print() # Newline after progress bar
 
     # Return best move
     # Select child with most visits
