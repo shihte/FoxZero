@@ -55,11 +55,27 @@
         }
 
         .noUi-handle {
+            /* Larger handle = easier to grab */
+            width: 22px !important;
+            height: 22px !important;
+            right: -11px !important;
+            top: -10px !important;
             background: #fff;
             border-radius: 50%;
-            border: 2px solid #141413;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 2.5px solid #141413;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
             cursor: grab;
+            transition: box-shadow 0.15s ease, transform 0.1s ease;
+        }
+
+        .noUi-handle:hover {
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+            transform: scale(1.12);
+        }
+
+        .noUi-handle:active {
+            cursor: grabbing;
+            transform: scale(1.18);
         }
 
         .noUi-handle:before,
@@ -67,12 +83,13 @@
             display: none;
         }
 
-        .noUi-handle:active {
-            cursor: grabbing;
-        }
-
         .noUi-handle.focus-top {
             z-index: 10 !important;
+        }
+
+        /* Extra horizontal room so edge handles aren't clipped */
+        .slider-wrap {
+            padding: 0 6px;
         }
 
         .color-spade .noUi-connect {
@@ -234,7 +251,7 @@
                             </label>
                         </div>
                     </div>
-                    <div id="slider-s" class="color-spade h-2"></div>
+                    <div id="slider-s" class="color-spade h-2 slider-wrap"></div>
                 </div>
 
                 <!-- Heart -->
@@ -257,7 +274,7 @@
                             </label>
                         </div>
                     </div>
-                    <div id="slider-h" class="color-heart h-2"></div>
+                    <div id="slider-h" class="color-heart h-2 slider-wrap"></div>
                 </div>
 
                 <!-- Club -->
@@ -280,7 +297,7 @@
                             </label>
                         </div>
                     </div>
-                    <div id="slider-c" class="color-club h-2"></div>
+                    <div id="slider-c" class="color-club h-2 slider-wrap"></div>
                 </div>
 
                 <!-- Diamond -->
@@ -302,7 +319,7 @@
                             </label>
                         </div>
                     </div>
-                    <div id="slider-d" class="color-diamond h-2"></div>
+                    <div id="slider-d" class="color-diamond h-2 slider-wrap"></div>
                 </div>
             </div>
         </div>
@@ -432,17 +449,28 @@
                 pips: { mode: 'values', values: [1, 7, 13], density: 4, format: wNumb({ decimals: 0 }) }
             });
 
-            // Z-index fix: clicked handle floats on top
-            setTimeout(() => {
-                slider.querySelectorAll('.noUi-handle').forEach(h => {
-                    ['mousedown', 'touchstart'].forEach(ev =>
-                        h.addEventListener(ev, () => {
-                            slider.querySelectorAll('.noUi-handle').forEach(x => x.classList.remove('focus-top'));
-                            h.classList.add('focus-top');
-                        }, { passive: true })
-                    );
-                });
-            }, 80);
+            // --- Smart Z-index fix ---
+            // Listen on the SLIDER CONTAINER (before noUiSlider eats the event)
+            // and promote whichever handle is closer to the click X.
+            const promoteNearestHandle = (clientX) => {
+                const rect = slider.getBoundingClientRect();
+                const clickPct = (clientX - rect.left) / rect.width; // 0..1
+                const vals = slider.noUiSlider.get().map(Number);
+                const range = 13 - 1; // max - min
+                const pct0 = (vals[0] - 1) / range;
+                const pct1 = (vals[1] - 1) / range;
+                const handles = slider.querySelectorAll('.noUi-handle');
+                const d0 = Math.abs(clickPct - pct0);
+                const d1 = Math.abs(clickPct - pct1);
+                handles.forEach(h => h.classList.remove('focus-top'));
+                // Promote the closer handle
+                handles[d0 <= d1 ? 0 : 1].classList.add('focus-top');
+            };
+
+            slider.addEventListener('mousedown', e => promoteNearestHandle(e.clientX));
+            slider.addEventListener('touchstart', e => {
+                if (e.touches.length > 0) promoteNearestHandle(e.touches[0].clientX);
+            }, { passive: true });
 
             slider.noUiSlider.on('update', vals => {
                 const v1 = Math.round(vals[0]), v2 = Math.round(vals[1]);
