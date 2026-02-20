@@ -97,6 +97,29 @@
             background: theme('colors.anthropic.blue');
         }
 
+        /* Disabled SLider Styling */
+        .noUi-target[disabled] {
+            opacity: 0.4;
+            filter: grayscale(100%);
+            cursor: not-allowed;
+            pointer-events: none;
+            /* Block interactions */
+        }
+
+        .noUi-target[disabled] .noUi-handle {
+            cursor: not-allowed;
+            background: theme('colors.anthropic.lightgray');
+            border-color: theme('colors.anthropic.mid');
+            box-shadow: none;
+        }
+
+        /* Z-index fixes for overlapping handles (7) */
+        /* By default, noUiSlider stacks lower handles below higher handles. 
+           We use 'drag-tap' behavior and toggle z-index on active */
+        .noUi-handle.focus-top {
+            z-index: 10 !important;
+        }
+
         /* Custom checkbox cards for hand selection */
         .card-checkbox {
             display: none;
@@ -123,150 +146,264 @@
         .card-label-btn:hover {
             border-color: theme('colors.anthropic.mid');
         }
+
+        /* Tiny checkbox customization */
+        .custom-checkbox {
+            appearance: none;
+            background-color: transparent;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.15em;
+            height: 1.15em;
+            border: 0.15em solid theme('colors.anthropic.mid');
+            border-radius: 0.25em;
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .custom-checkbox::before {
+            content: "";
+            width: 0.65em;
+            height: 0.65em;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em white;
+            background-color: white;
+            transform-origin: center;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+
+        .custom-checkbox:checked {
+            background-color: theme('colors.anthropic.orange');
+            border-color: theme('colors.anthropic.orange');
+        }
+
+        .custom-checkbox:checked::before {
+            transform: scale(1);
+        }
     </style>
 </head>
 
 <body class="min-h-screen py-10 px-4 md:px-0">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-5xl mx-auto">
         <!-- Header -->
         <div class="text-center mb-10">
             <h1 class="text-4xl md:text-5xl font-bold text-anthropic-dark mb-3 tracking-tight">🦊 FoxZero 邏輯推演算牌器</h1>
             <p class="text-anthropic-mid italic text-lg opacity-80">採用人工智慧與自我對弈推演您的最佳步數</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <!-- Left Column: Board & Cards -->
-            <div class="md:col-span-2 space-y-8">
+        <!-- 2 Column Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
+            <!-- Left Column: Desktop Status -->
+            <div class="space-y-8">
                 <!-- Section 1: Desktop Status -->
                 <div
-                    class="bg-white p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-anthropic-lightgray">
+                    class="bg-white p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-anthropic-lightgray">
                     <h3 class="text-2xl font-bold mb-2 heading-font text-anthropic-dark flex items-center gap-2">
-                        <span>🃏</span> 桌面狀態 (已出的牌)
+                        <svg class="w-6 h-6 text-anthropic-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                            </path>
+                        </svg>
+                        桌面狀態 (已出的牌)
                     </h3>
-                    <p class="text-sm text-anthropic-mid mb-8 font-body">請拖曳滑桿設定每種花色已出的範圍 (包含 7)。</p>
+                    <p class="text-sm text-anthropic-mid mb-8 font-body">請設定每種花色已出的範圍，勾選「未破冰」可停用該花色。</p>
 
-                    <div class="space-y-8">
+                    <div class="space-y-10">
+                        <!-- Spade -->
                         <div class="suit-group">
                             <div
-                                class="flex justify-between items-center mb-2 font-heading font-semibold text-anthropic-dark">
-                                <span><span class="text-black text-xl">♠️</span> 黑桃 (Spade)</span>
-                                <span id="s-val"
-                                    class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray">7
-                                    - 7</span>
+                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                                <div class="flex items-center gap-2 font-heading font-semibold text-anthropic-dark">
+                                    <!-- Solid Spade Icon -->
+                                    <svg class="w-5 h-5 text-anthropic-dark" viewBox="0 0 24 24" fill="currentColor">
+                                        <path
+                                            d="M12 2.75C12 2.75 3 10.25 3 14.5C3 18.5 7 20 10.5 19.5L11 22H13L13.5 19.5C17 20 21 18.5 21 14.5C21 10.25 12 2.75 12 2.75Z" />
+                                    </svg>
+                                    <span>黑桃 (Spade)</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="flex items-center gap-2 text-sm font-heading cursor-pointer text-anthropic-mid hover:text-anthropic-dark transition">
+                                        <input type="checkbox" id="not-started-s" class="custom-checkbox align-middle">
+                                        <span>未破冰</span>
+                                    </label>
+                                    <span id="s-val"
+                                        class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray min-w-[70px] text-center">7
+                                        - 7</span>
+                                </div>
                             </div>
                             <div id="slider-s" class="color-spade h-2"></div>
                         </div>
 
+                        <!-- Heart -->
                         <div class="suit-group">
                             <div
-                                class="flex justify-between items-center mb-2 font-heading font-semibold text-anthropic-dark">
-                                <span><span class="text-anthropic-orange text-xl">❤️</span> 紅心 (Heart)</span>
-                                <span id="h-val"
-                                    class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray">7
-                                    - 7</span>
+                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                                <div class="flex items-center gap-2 font-heading font-semibold text-anthropic-dark">
+                                    <!-- Solid Heart Icon -->
+                                    <svg class="w-5 h-5 text-anthropic-orange" viewBox="0 0 24 24" fill="currentColor">
+                                        <path
+                                            d="M12 21.35L10.55 20.03C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z" />
+                                    </svg>
+                                    <span>紅心 (Heart)</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="flex items-center gap-2 text-sm font-heading cursor-pointer text-anthropic-mid hover:text-anthropic-dark transition">
+                                        <input type="checkbox" id="not-started-h" class="custom-checkbox align-middle">
+                                        <span>未破冰</span>
+                                    </label>
+                                    <span id="h-val"
+                                        class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray min-w-[70px] text-center">7
+                                        - 7</span>
+                                </div>
                             </div>
                             <div id="slider-h" class="color-heart h-2"></div>
                         </div>
 
+                        <!-- Club -->
                         <div class="suit-group">
                             <div
-                                class="flex justify-between items-center mb-2 font-heading font-semibold text-anthropic-dark">
-                                <span><span class="text-anthropic-green text-xl">♣️</span> 梅花 (Club)</span>
-                                <span id="c-val"
-                                    class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray">7
-                                    - 7</span>
+                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                                <div class="flex items-center gap-2 font-heading font-semibold text-anthropic-dark">
+                                    <!-- Solid Club Icon -->
+                                    <svg class="w-5 h-5 text-anthropic-green" viewBox="0 0 24 24" fill="currentColor">
+                                        <path
+                                            d="M12 2C9.24 2 7 4.24 7 7C7 8.54 7.69 9.89 8.78 10.82C6.67 11.23 5 13.11 5 15.4C5 17.94 7.06 20 9.6 20C10.74 20 11.78 19.59 12.6 18.91L11.5 22H12.5L11.4 18.91C12.22 19.59 13.26 20 14.4 20C16.94 20 19 17.94 19 15.4C19 13.11 17.33 11.23 15.22 10.82C16.31 9.89 17 8.54 17 7C17 4.24 14.76 2 12 2Z" />
+                                    </svg>
+                                    <span>梅花 (Club)</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="flex items-center gap-2 text-sm font-heading cursor-pointer text-anthropic-mid hover:text-anthropic-dark transition">
+                                        <input type="checkbox" id="not-started-c" class="custom-checkbox align-middle">
+                                        <span>未破冰</span>
+                                    </label>
+                                    <span id="c-val"
+                                        class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray min-w-[70px] text-center">7
+                                        - 7</span>
+                                </div>
                             </div>
                             <div id="slider-c" class="color-club h-2"></div>
                         </div>
 
+                        <!-- Diamond -->
                         <div class="suit-group">
                             <div
-                                class="flex justify-between items-center mb-2 font-heading font-semibold text-anthropic-dark">
-                                <span><span class="text-anthropic-blue text-xl">♦️</span> 方塊 (Diamond)</span>
-                                <span id="d-val"
-                                    class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray">7
-                                    - 7</span>
+                                class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                                <div class="flex items-center gap-2 font-heading font-semibold text-anthropic-dark">
+                                    <!-- Solid Diamond Icon -->
+                                    <svg class="w-5 h-5 text-anthropic-blue" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2L2 12L12 22L22 12L12 2Z" />
+                                    </svg>
+                                    <span>方塊 (Diamond)</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="flex items-center gap-2 text-sm font-heading cursor-pointer text-anthropic-mid hover:text-anthropic-dark transition">
+                                        <input type="checkbox" id="not-started-d" class="custom-checkbox align-middle">
+                                        <span>未破冰</span>
+                                    </label>
+                                    <span id="d-val"
+                                        class="bg-anthropic-light px-3 py-1 rounded-full text-sm font-mono border border-anthropic-lightgray min-w-[70px] text-center">7
+                                        - 7</span>
+                                </div>
                             </div>
                             <div id="slider-d" class="color-diamond h-2"></div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Section 3: My Hand Cards -->
+            <!-- Right Column: Settings, Hands, and Run. Vertically Stacked -->
+            <div class="space-y-8 flex flex-col">
+
+                <!-- Section: Compact Settings Row (Covers + Simulation) -->
                 <div
                     class="bg-white p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-anthropic-lightgray">
-                    <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold mb-6 heading-font text-anthropic-dark flex items-center gap-2">
+                        <svg class="w-6 h-6 text-anthropic-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        推演設定
+                    </h3>
+
+                    <!-- Form Grid Layout for Covers -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 font-heading">
+                        <div>
+                            <label class="block text-xs font-semibold text-anthropic-dark mb-1">玩家 1 (我)</label>
+                            <input type="number" id="cp1" value="0" min="0" max="13"
+                                class="w-full px-3 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-anthropic-dark mb-1">玩家 2 蓋牌</label>
+                            <input type="number" id="cp2" value="0" min="0" max="13"
+                                class="w-full px-3 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-anthropic-dark mb-1">玩家 3 蓋牌</label>
+                            <input type="number" id="cp3" value="0" min="0" max="13"
+                                class="w-full px-3 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition text-center">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-anthropic-dark mb-1">玩家 4 蓋牌</label>
+                            <input type="number" id="cp4" value="0" min="0" max="13"
+                                class="w-full px-3 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition text-center">
+                        </div>
+                    </div>
+
+                    <!-- Layout for Slider -->
+                    <div>
+                        <label class="flex justify-between font-heading text-sm font-semibold text-anthropic-dark mb-4">
+                            <span>推演樹深度 (Simulations)</span>
+                            <span id="sim-val"
+                                class="font-mono bg-anthropic-lightgray px-3 py-1 rounded text-sm select-none">600</span>
+                        </label>
+                        <input type="range" id="sims" min="100" max="5000" step="100" value="600"
+                            class="w-full h-2 bg-anthropic-lightgray rounded-lg appearance-none cursor-pointer accent-anthropic-orange focus:outline-none focus:ring-2 focus:ring-anthropic-orange/30">
+                    </div>
+                </div>
+
+                <!-- Section: My Hand Cards -->
+                <div
+                    class="bg-white p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-anthropic-lightgray flex-grow">
+                    <div class="flex justify-between items-center mb-6">
                         <h3 class="text-2xl font-bold heading-font text-anthropic-dark flex items-center gap-2">
-                            <span>🖐️</span> 我的手牌
+                            <svg class="w-6 h-6 text-anthropic-blue" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11">
+                                </path>
+                            </svg>
+                            我的手牌
                         </h3>
                         <button id="clear-hand-btn"
-                            class="font-heading text-xs font-semibold px-3 py-1.5 bg-anthropic-lightgray text-anthropic-dark hover:bg-anthropic-mid hover:text-white rounded-md transition-colors">
+                            class="font-heading text-xs font-semibold px-4 py-2 bg-anthropic-lightgray text-anthropic-dark hover:bg-anthropic-mid hover:text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-anthropic-mid">
                             清空手牌
                         </button>
                     </div>
 
-                    <div id="hand-selection-area" class="flex flex-col gap-4">
+                    <div id="hand-selection-area" class="flex flex-col gap-5">
                         <!-- Constructed via JS -->
                     </div>
                 </div>
-            </div>
 
-            <!-- Right Column: Player Covered Cards & Settings -->
-            <div class="space-y-8">
-
-                <!-- Section 2: Player Covered Info -->
-                <div
-                    class="bg-white p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-anthropic-lightgray">
-                    <h3 class="text-xl font-bold mb-4 heading-font text-anthropic-dark flex items-center gap-2">
-                        <span>🙈</span> 玩家蓋牌數
-                    </h3>
-
-                    <div class="space-y-4 font-heading">
-                        <div>
-                            <label class="block text-sm font-semibold text-anthropic-dark mb-1">玩家 1 (我的蓋牌數)</label>
-                            <input type="number" id="cp1" value="0" min="0" max="13"
-                                class="w-full px-4 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-anthropic-dark mb-1">玩家 2 蓋牌</label>
-                            <input type="number" id="cp2" value="0" min="0" max="13"
-                                class="w-full px-4 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-anthropic-dark mb-1">玩家 3 蓋牌</label>
-                            <input type="number" id="cp3" value="0" min="0" max="13"
-                                class="w-full px-4 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-anthropic-dark mb-1">玩家 4 蓋牌</label>
-                            <input type="number" id="cp4" value="0" min="0" max="13"
-                                class="w-full px-4 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section 4: Settings & Run -->
-                <div
-                    class="bg-white p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-anthropic-lightgray">
-                    <h3 class="text-xl font-bold mb-4 heading-font text-anthropic-dark flex items-center gap-2">
-                        <span>🧠</span> AI 推演設定
-                    </h3>
-
-                    <div class="mb-6">
-                        <label class="flex justify-between font-heading text-sm font-semibold text-anthropic-dark mb-2">
-                            <span>蒙地卡羅樹深 (Simulations)</span>
-                            <span id="sim-val" class="font-mono bg-anthropic-lightgray px-2 py-0.5 rounded">600</span>
-                        </label>
-                        <input type="range" id="sims" min="100" max="5000" step="100" value="600"
-                            class="w-full h-2 bg-anthropic-lightgray rounded-lg appearance-none cursor-pointer accent-anthropic-orange">
-                    </div>
-
-                    <button onclick="runAnalysis()" id="run-btn"
-                        class="w-full py-4 bg-anthropic-orange text-white font-heading font-bold text-lg rounded-xl shadow-lg hover:shadow-xl hover:bg-anthropic-hoverorange transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-anthropic-orange/30">
-                        🚀 開始推演
-                    </button>
-                </div>
+                <!-- Run Button -->
+                <button onclick="runAnalysis()" id="run-btn"
+                    class="w-full py-5 bg-anthropic-orange text-white font-heading font-bold text-xl rounded-2xl shadow-lg hover:shadow-xl hover:bg-anthropic-hoverorange transform hover:-translate-y-1 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-anthropic-orange/50">
+                    🚀 開始推演
+                </button>
 
             </div>
         </div>
@@ -275,10 +412,15 @@
         <div id="result-section"
             class="mt-8 bg-anthropic-dark text-anthropic-light p-6 md:p-8 rounded-2xl shadow-[0_20px_50px_rgb(0,0,0,0.1)] hidden border border-gray-800">
             <h3 class="text-2xl font-bold mb-4 heading-font flex items-center gap-2">
-                <span class="text-anthropic-blue">📊</span> 推演結論與思考日誌
+                <svg class="w-6 h-6 text-anthropic-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                推演結論與思考日誌
             </h3>
             <pre id="result-output"
-                class="font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto p-4 bg-black/30 rounded-lg custom-scrollbar">等待推演完成...</pre>
+                class="font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto p-4 bg-black/40 rounded-xl custom-scrollbar border border-gray-700/50">等待推演完成...</pre>
         </div>
 
     </div>
@@ -296,43 +438,78 @@
         // --- Setup Range Sliders ---
         suits.forEach(s => {
             const slider = document.getElementById(`slider-${s.id}`);
+            const checkbox = document.getElementById(`not-started-${s.id}`);
+            const label = document.getElementById(`${s.id}-val`);
+
             noUiSlider.create(slider, {
                 start: [7, 7], // Default is middle
                 connect: true,
                 range: { 'min': 1, 'max': 13 },
                 step: 1,
+                behavior: 'drag-tap', // Better UX for single point grabbing
                 pips: { mode: 'values', values: [1, 7, 13], density: 4, format: wNumb({ decimals: 0 }) }
             });
 
             // Re-style UI pips
             setTimeout(() => {
-                document.querySelectorAll('.noUi-pips, .noUi-marker, .noUi-value').forEach(el => el.classList.add('text-xs', 'font-mono', 'text-anthropic-mid'));
+                const sliderEl = document.getElementById(`slider-${s.id}`);
+                sliderEl.querySelectorAll('.noUi-pips, .noUi-marker, .noUi-value').forEach(el => el.classList.add('text-xs', 'font-mono', 'text-anthropic-mid'));
+
+                // Add Focus Event Listeners to fix Handle Z-index Overlap Issues on Slider creation
+                const handles = sliderEl.querySelectorAll('.noUi-handle');
+                handles.forEach(handle => {
+                    handle.addEventListener('mousedown', function () {
+                        handles.forEach(h => h.classList.remove('focus-top'));
+                        this.classList.add('focus-top');
+                    });
+                    // Touch support
+                    handle.addEventListener('touchstart', function () {
+                        handles.forEach(h => h.classList.remove('focus-top'));
+                        this.classList.add('focus-top');
+                    }, { passive: true });
+                });
             }, 100);
 
+            // Slider Update Event
             slider.noUiSlider.on('update', function (values) {
                 const v1 = Math.round(values[0]);
                 const v2 = Math.round(values[1]);
-                const label = document.getElementById(`${s.id}-val`);
 
                 // Show values properly
                 if (v1 === 7 && v2 === 7) {
-                    label.innerText = `剛出 7 (或即將出 7)`;
+                    label.innerText = `剛出 7`;
                 } else {
                     label.innerText = `${v1} ↔ ${v2}`;
+                }
+            });
+
+            // Checkbox Disable Event
+            checkbox.addEventListener('change', function () {
+                if (this.checked) {
+                    slider.setAttribute('disabled', true);
+                    label.innerText = '未破冰';
+                    label.classList.add('opacity-50', 'bg-anthropic-lightgray');
+                } else {
+                    slider.removeAttribute('disabled');
+                    label.classList.remove('opacity-50', 'bg-anthropic-lightgray');
+                    // Force text re-eval
+                    const curr = slider.noUiSlider.get();
+                    const v1 = Math.round(curr[0]);
+                    const v2 = Math.round(curr[1]);
+                    label.innerText = (v1 === 7 && v2 === 7) ? `剛出 7` : `${v1} ↔ ${v2}`;
                 }
             });
         });
 
         // --- Build Checklist Buttons ---
         const handArea = document.getElementById('hand-selection-area');
-        const suitSymbols = { s: '♠️', h: '❤️', c: '♣️', d: '♦️' };
-
         // Use generic alphabet for picture cards
         const rankLabels = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
 
         suits.forEach(s => {
             const row = document.createElement('div');
-            row.className = 'grid grid-cols-7 md:grid-cols-13 gap-1 md:gap-1.5';
+            // Responsive Wrap for small screens, uniform grid on larger
+            row.className = 'grid grid-cols-7 lg:grid-cols-13 gap-1.5';
 
             for (let r = 1; r <= 13; r++) {
                 const labelTxt = rankLabels[r] || r.toString();
@@ -347,15 +524,15 @@
                 chk.className = 'card-checkbox';
 
                 const lbl = document.createElement('label');
-                lbl.className = 'card-label-btn flex items-center justify-center py-2 rounded font-mono text-sm';
+                lbl.className = 'card-label-btn flex items-center justify-center py-2.5 rounded-lg font-mono text-sm shadow-sm';
                 lbl.htmlFor = id;
                 lbl.innerText = labelTxt;
 
                 // Add soft colored bottom border accent to each card outline
-                if (s.id === 's') lbl.classList.add('border-b-4', 'border-b-anthropic-dark');
-                if (s.id === 'h') lbl.classList.add('border-b-4', 'border-b-anthropic-orange');
-                if (s.id === 'c') lbl.classList.add('border-b-4', 'border-b-anthropic-green');
-                if (s.id === 'd') lbl.classList.add('border-b-4', 'border-b-anthropic-blue');
+                if (s.id === 's') lbl.classList.add('border-b-[3px]', 'border-b-anthropic-dark');
+                if (s.id === 'h') lbl.classList.add('border-b-[3px]', 'border-b-anthropic-orange');
+                if (s.id === 'c') lbl.classList.add('border-b-[3px]', 'border-b-anthropic-green');
+                if (s.id === 'd') lbl.classList.add('border-b-[3px]', 'border-b-anthropic-blue');
 
                 wrap.appendChild(chk);
                 wrap.appendChild(lbl);
@@ -381,7 +558,7 @@
             const resOut = document.getElementById('result-output');
 
             btn.disabled = true;
-            btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 hidden sm:inline-block border-2 border-white border-t-transparent rounded-full" viewBox="0 0 24 24"></svg> 🦊 節點暴風運算中...`;
+            btn.innerHTML = `<svg class="animate-spin h-6 w-6 mr-3 hidden sm:inline-block border-[3px] border-white border-t-transparent rounded-full align-middle" viewBox="0 0 24 24"></svg><span class="align-middle">🦊 節點暴風運算中...</span>`;
             resSec.classList.remove('hidden');
             resOut.innerText = "正在模擬可能牌局並建立決策蒙地卡羅樹 (MCTS)...";
             resSec.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -399,10 +576,17 @@
                 hand: []
             };
 
-            // Calculate ranges based on slider values
+            // Calculate ranges based on slider values & checkbox state
             suits.forEach(s => {
-                const vals = document.getElementById(`slider-${s.id}`).noUiSlider.get();
-                data.ranges[s.id] = [Math.round(vals[0]), Math.round(vals[1])];
+                const notStarted = document.getElementById(`not-started-${s.id}`).checked;
+
+                if (notStarted) {
+                    // Send an empty array to denote suit is not started yet.
+                    data.ranges[s.id] = [];
+                } else {
+                    const vals = document.getElementById(`slider-${s.id}`).noUiSlider.get();
+                    data.ranges[s.id] = [Math.round(vals[0]), Math.round(vals[1])];
+                }
 
                 for (let r = 1; r <= 13; r++) {
                     if (document.getElementById(`card-${s.id}-${r}`).checked) {
@@ -420,12 +604,12 @@
                 const result = await response.json();
 
                 if (result.error) {
-                    resOut.innerHTML = `<span class="text-anthropic-orange">發生錯誤:</span>\n${result.error}`;
+                    resOut.innerHTML = `<span class="text-anthropic-orange font-bold text-base">⚠️ 發生錯誤:</span>\n${result.error}`;
                 } else {
                     resOut.innerText = result.output;
                 }
             } catch (e) {
-                resOut.innerHTML = `<span class="text-red-500 font-bold">連線失敗: 伺服器是否運行中？ (${e})</span>`;
+                resOut.innerHTML = `<span class="text-red-500 font-bold text-base">🚫 連線失敗: 伺服器是否運行中？ (${e})</span>`;
             }
 
             btn.disabled = false;

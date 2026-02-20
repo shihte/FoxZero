@@ -19,10 +19,10 @@ def analyze():
     
     # Extract data
     ranges = data.get('ranges', {})
-    s_r = ranges.get('s', [7, 7])
-    h_r = ranges.get('h', [7, 7])
-    c_r = ranges.get('c', [7, 7])
-    d_r = ranges.get('d', [7, 7])
+    s_r = ranges.get('s', [])
+    h_r = ranges.get('h', [])
+    c_r = ranges.get('c', [])
+    d_r = ranges.get('d', [])
     
     covered = data.get('covered', {})
     cp1 = covered.get('p1', 0)

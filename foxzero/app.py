@@ -90,22 +90,7 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     game = SevensGame()
     
     # Set Played Cards (Board)
-    # Range is [min, max]. e.g. [4, 10].
-    # If standard start (7), cards played are 7..max and min..7.
-    # But Sevens grows 7->6->... and 7->8->...
-    # So if range is [4, 10], it implies 4,5,6,7,8,9,10 are played.
-    # BUT, 7 must be played to play 6 or 8. So it's always contiguous from 7.
-    # Unless 7 is NOT played? Sevens game starts with S7.
-    # Assuming valid state: contiguous range including 7 (if played) or single 7?
-    # Actually, if range is [4, 10], it means 4,5,6,7,8,9,10 are on board.
-    
-    # Reset played_cards
-    # SevensGame init sets played_cards to just placeholders (1,2,3,4) with empty ranges?
-    # No, game.played_cards is List[PlacedSuit].
-    # PlacedSuit tracks low/high.
-    
-    # We need to manually set `low` and `high` for each suit.
-    # S:1, H:2, C:3, D:4
+    # Range is [min, max] or [] if not started.
     ranges = {
         4: spade_range, 
         3: heart_range, 
@@ -133,28 +118,24 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     
     total_played = 0
     
-    for suit_id, (low, high) in ranges.items():
-        # Update game state
-        # PlacedSuit: has_7, low, high
-        # If range includes 7, set has_7=True.
-        # But wait, logic: 7 is ALWAYS first.
-        # So if range is [4, 10], 7 MUST be in there.
-        # If range doesn't include 7 (e.g. [1, 3]), it's INVALID state.
-        # We will assume valid input: 7 is inside or range is empty?
-        # RangeSlider constraints?
-        
-        # Let's trust user input but fix logically.
-        # If 7 not in range, we force it? Or assume invalid?
-        # Let's assume user sets valid ranges (containing 7).
-        
+    for suit_id, r in ranges.items():
         ps = game.played_cards[suit_id - 1]
-        ps.has_7 = True # Assume played for now
-        ps.low = low
-        ps.high = high
         
-        # Calculate count
-        count = high - low + 1
-        total_played += count
+        if not r or len(r) != 2:
+            # Suit not started
+            ps.has_7 = False
+            ps.low = 0
+            ps.high = 0
+            # count is 0
+        else:
+            low, high = r
+            ps.has_7 = True # Assume played for now
+            ps.low = low
+            ps.high = high
+            
+            # Calculate count
+            count = high - low + 1
+            total_played += count
 
     # 2. Setup Hands
     # We have `my_hand_input` (list of cards).
@@ -248,15 +229,13 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
             all_cards.add(Card(s, r))
             
     # Remove Board Cards
-    for suit_id, (low, high) in ranges.items():
-        # Assumes contiguous range exists
-        if low <= high: # Valid range
-            # Check if this suit is "started"
-            # If S7 is required, check if 7 in range.
-            pass
-        for r in range(low, high + 1):
-             c = Card(suit_id, r)
-             if c in all_cards: all_cards.remove(c)
+    for suit_id, r in ranges.items():
+        if r and len(r) == 2:
+            low, high = r
+            if low <= high: # Valid range
+                for r_val in range(low, high + 1):
+                     c = Card(suit_id, r_val)
+                     if c in all_cards: all_cards.remove(c)
              
     # Remove User Hand
     for c in my_cards:

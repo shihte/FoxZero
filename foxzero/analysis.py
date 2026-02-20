@@ -100,19 +100,28 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     
     total_played = 0
     
-    for suit_id, (low, high) in ranges.items():
+    for suit_id, r in ranges.items():
         # Update game state
         ps = game.played_cards[suit_id - 1]
         
-        if low == 0 or high == 0:
+        if not r or len(r) != 2:
             ps.lowest_card = None
             ps.highest_card = None
             count = 0
+            ps.has_7 = False
         else:
-            ps.lowest_card = Card(suit_id, low)
-            ps.highest_card = Card(suit_id, high)
-            # Calculate count
-            count = high - low + 1
+            low, high = r
+            if low == 0 or high == 0:
+                ps.lowest_card = None
+                ps.highest_card = None
+                count = 0
+                ps.has_7 = False
+            else:
+                ps.lowest_card = Card(suit_id, low)
+                ps.highest_card = Card(suit_id, high)
+                ps.has_7 = True
+                # Calculate count
+                count = high - low + 1
             
         total_played += count
 
@@ -169,11 +178,13 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
             all_cards.add(Card(s, r))
             
     # Remove Board Cards
-    for suit_id, (low, high) in ranges.items():
-        if low <= high: 
-            for r in range(low, high + 1):
-                 c = Card(suit_id, r)
-                 if c in all_cards: all_cards.remove(c)
+    for suit_id, r in ranges.items():
+        if r and len(r) == 2:
+            low, high = r
+            if low <= high and low > 0: 
+                for r_val in range(low, high + 1):
+                     c = Card(suit_id, r_val)
+                     if c in all_cards: all_cards.remove(c)
              
     # Remove User Hand
     for c in my_cards:
