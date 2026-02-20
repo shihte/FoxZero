@@ -89,16 +89,39 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
             scratch_game.determinize(observer_player=current_player)
             
         # 2. Selection
-        while len(node.children) > 0:
-            # Select best child
-            card, node = max(node.children.items(), key=lambda item: item[1].ucb_score(c_puct))
+        # 2. Selection
+        while True:
+            # Check valid moves for current player in this specific determinization
+            current_p = scratch_game.current_player_number
+            valid_moves = scratch_game.get_all_valid_moves(current_p)
             
-            # Apply move in simulation
-            scratch_game.make_move(card)
-            scratch_game.next_player()
+            # If no valid moves, it's terminal or pass-stuck?
+            if len(valid_moves) == 0:
+                break
+                
+            # Filter children that are valid in this universe
+            feasible_children = [c for c in valid_moves if c in node.children]
+            unexpanded = [c for c in valid_moves if c not in node.children]
             
-            # If game over during selection, break
-            if scratch_game.is_game_over():
+            # If there are unexpanded moves valid in this universe, we should stop selection 
+            # and let the Expansion phase handle this node (add the unexpanded child).
+            if len(unexpanded) > 0:
+                # We stop at 'node' and will expand from here.
+                break
+                
+            if len(feasible_children) > 0:
+                # All valid moves are already in tree. Select best feasible child.
+                # Only compare UCB among feasible children
+                card = max(feasible_children, key=lambda c: node.children[c].ucb_score(c_puct))
+                node = node.children[card]
+                
+                scratch_game.make_move(card)
+                scratch_game.next_player()
+                
+                if scratch_game.is_game_over():
+                    break
+            else:
+                # Should not happen if len(valid_moves) > 0 and unexpanded check failed
                 break
                 
         # 3. Expansion & Evaluation
@@ -106,45 +129,88 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
         value = 0.0
         
         if scratch_game.is_game_over():
-            # Terminal state
-            final_rewards = scratch_game.calculate_final_rewards()
-            # Reward for the player whose turn it was at the PARENT of this node?
-            # Actually, standard is: We want value for `leaf_player`.
-            # If game over, `leaf_player` doesn't matter, we get rewards vector.
-            # But we need a scalar 'value' to propagate back up.
-            # The value depends on WHO is evaluating.
-            pass # Value calc below
+            # Terminal state (Global)
+            rewards = scratch_game.calculate_final_rewards()
+            # We don't have a 'value' relative to a single player here easily, 
+            # but backprop handles vector rewards if implemented fully. 
+            # For now, let's just pick the reward for the leaf_player to fit 'value' scalar api,
+            # but usually we handle terminal differently. 
+            # Note: The backprop loop below assumes 'value' flip.
+            # Let's treat it as 0.0 value but set a flag? 
+            # Actually, let's use the loop below which is designed for scalar value.
+            # If game over, we can't use scalar value easily.
+            # Hack: loop expects 'value' for 'leaf_player'.
+            pass 
         else:
-            # Neural Net Eval
-            # Check valid moves at leaf
-            leaf_moves = scratch_game.get_all_valid_moves(leaf_player)
+            # Not Game Over -> Expand
+            leaf_player = scratch_game.current_player_number
+            valid_moves_leaf = scratch_game.get_all_valid_moves(leaf_player)
             
-            if len(leaf_moves) > 0:
-                s_t = scratch_game.get_state_tensor(leaf_player)
-                inp = torch.tensor(s_t, dtype=torch.float32).unsqueeze(0).to(next(model.parameters()).device)
-                with torch.no_grad():
-                    l, v = model(inp)
-                    val = v.item()
-                    p_dist = torch.softmax(l, dim=1).cpu().numpy().flatten()
+            if len(valid_moves_leaf) > 0:
+                # Check which ones are new
+                unexpanded = [c for c in valid_moves_leaf if c not in node.children]
                 
-                # Expand children
-                for c in leaf_moves:
-                    s, r = c.to_tensor_index()
-                    idx = s * 13 + r
-                    node.children[c] = InferenceMCTSNode(parent=node, prior=p_dist[idx])
-                
-                value = val # Value for 'leaf_player'
+                if len(unexpanded) > 0:
+                    # Need to evaluate state to get priors/value for these new moves
+                    s_t = scratch_game.get_state_tensor(leaf_player)
+                    inp = torch.tensor(s_t, dtype=torch.float32).unsqueeze(0).to(next(model.parameters()).device)
+                    with torch.no_grad():
+                        l, v = model(inp)
+                        val = v.item()
+                        p_dist = torch.softmax(l, dim=1).cpu().numpy().flatten()
+                    
+                    # Add NEW children
+                    for c in unexpanded:
+                        s, r = c.to_tensor_index()
+                        idx = s * 13 + r
+                        # Use the prior from THIS evaluation. 
+                        # Note: This might bias priors based on the specific hand we held when first discovering the move.
+                        # This is an acceptable approximation for IS-MCTS.
+                        node.children[c] = InferenceMCTSNode(parent=node, prior=p_dist[idx])
+                        
+                    value = val
+                else:
+                    # All moves expanded, but we stopped here?
+                    # This happens if selection loop broke because we want to Rollout?
+                    # Or maybe we just treat this node as the leaf to evaluate score?
+                    # If we are here, it means we traversed deeply and either:
+                    # 1. Game Over (handled above)
+                    # 2. We stopped at a "fully expanded node"?? 
+                    # Wait, Selection loop only breaks if:
+                    # - Game Over
+                    # - Unexpanded moves exist (Handled above)
+                    # - No valid moves (Handled below)
+                    # - feasible_children is empty (impossible if valid>0 and unexpanded=0)
+                    
+                    # So actually, if we are here and valid_moves>0 and len(unexpanded)==0:
+                    # We shouldn't be here?
+                    # Ah, loop runs 'simulations' times. The Selection loop breaks.
+                    # If selection loop ran until Game Over, we are in `if game_over`.
+                    # If selection loop broke due to `unexpanded`, we are in `if len(unexpanded) > 0`.
+                    # So this logic covers it.
+                    
+                    # What if we reached a leaf that is fully expanded?
+                    # Selection loop continues UNTIL a leaf?
+                    # Standard MCTS: select until we fall out of tree.
+                    # My selection loop: `while len(node.children) > 0`: but filtered.
+                    # If node has children but NONE are feasible: `feasible_children` empty.
+                    # Then it breaks.
+                    # Then `unexpanded` will be ALL `valid_moves` (since they are valid but not in children? No).
+                    # Loop:
+                    # valid_moves = [A, B]
+                    # children = [C, D] (from other universes)
+                    # feasible = []
+                    # unexpanded = [A, B]
+                    # Breaks.
+                    # Here: unexpanded=[A,B]. Adds them. OK.
+                    pass
+                    
             else:
-                # Pass? Or game over?
-                # If no moves but game not over, it's a pass.
-                # In Sevens, pass is forced. Make pass move and continue?
-                # Simplified: Treat as terminal 0 or continue?
-                # For this MCTS, let's just stop expansion and eval as 0 (drawish) or -1?
-                # Actually Sevens Pass is valid move logic handled by game?
-                # If get_all_valid_moves returns [], it means pass... 
-                # But game.is_valid_move includes logic.
-                # Let's assume recursion handles it or just use value=0
-                value = -0.5 # Penalty for stuck?
+                # No valid moves (Pass logic?)
+                # In Sevens, you must cover. get_all_valid_moves returns hand if must cover.
+                # So if len==0, it's really stuck or empty hand?
+                # Empty hand = Game Over, handled by game.is_game_over().
+                value = 0.0
                 
         # 4. Backpropagation
         # Propagate value up the tree.
