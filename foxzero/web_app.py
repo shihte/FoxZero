@@ -43,6 +43,8 @@ def analyze():
             hand_input,
             sims
         )
+        if isinstance(result, dict) and 'error' in result:
+            return jsonify(result)
         return jsonify({'output': result})
     except Exception as e:
         return jsonify({'error': str(e), 'output': ''})

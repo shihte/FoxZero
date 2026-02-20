@@ -647,7 +647,7 @@
                     suitIcon.style.color = suitColor;
                     rankText.style.color = suitColor;
 
-                    resOut.textContent = `${out.info}\n\n--- 思考日誌 ---\n${out.log}`;
+                    resOut.classList.add('hidden'); // Hide raw logs
 
                     // Wire Apply block
                     const applyBtn = document.getElementById('apply-btn');
@@ -656,10 +656,12 @@
                 } else if (j.output) {
                     // Fallback for string
                     cardArea.classList.add('hidden');
+                    resOut.classList.remove('hidden');
                     resOut.textContent = j.output;
                 }
             } catch (e) {
                 document.getElementById('suggestion-card-area').classList.add('hidden');
+                resOut.classList.remove('hidden');
                 resOut.innerHTML = `<span class="text-red-400 font-bold">🚫 連線失敗 (${e})</span>`;
             }
 
