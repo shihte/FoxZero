@@ -77,7 +77,6 @@ class FoxZeroResNet(nn.Module):
         b = F.relu(self.belief_bn(self.belief_conv(x)))
         b = b.view(b.size(0), -1)
         b = self.belief_fc(b)
-        b = torch.sigmoid(b)
         b = b.view(-1, 3, 4, 13)
         
         return p, v, b
@@ -92,7 +91,8 @@ class FoxZeroResNet(nn.Module):
         with torch.no_grad():
             x = torch.FloatTensor(state_tensor).unsqueeze(0) # Add batch dim
             p, v, b = self(x)
-            return p.squeeze(0).numpy(), v.item(), b.squeeze(0).numpy()
+            b_probs = torch.sigmoid(b)
+            return p.squeeze(0).numpy(), v.item(), b_probs.squeeze(0).numpy()
 
 # -------------------------
 # Simulation Logic

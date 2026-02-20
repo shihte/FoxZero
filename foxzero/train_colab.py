@@ -207,11 +207,11 @@ def train_colab():
             
             # 4. Optimization
             optimizer.zero_grad()
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast('cuda'):
                 p_logits, v_pred, b_pred = model(states_t)
                 loss_p = torch.nn.functional.cross_entropy(p_logits, policies_t)
                 loss_v = torch.nn.functional.mse_loss(v_pred, values_t)
-                loss_b = torch.nn.functional.binary_cross_entropy(b_pred, b_targets_t)
+                loss_b = torch.nn.functional.binary_cross_entropy_with_logits(b_pred, b_targets_t)
                 
                 loss = loss_p + loss_v + (0.5 * loss_b)
                 

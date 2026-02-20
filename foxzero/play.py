@@ -35,7 +35,8 @@ def make_predict_batch_fn(model):
             l, v, b = model(inp)
             val = v.cpu().numpy().flatten()
             p_dist = torch.softmax(l, dim=1).cpu().numpy()
-        return (p_dist, val)
+            b_probs = torch.sigmoid(b).cpu().numpy()
+        return (p_dist, val, b_probs)
     return predict_batch_fn
 
 def py_game_to_cpp_engine(py_game):
