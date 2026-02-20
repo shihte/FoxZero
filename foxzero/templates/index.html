@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoxZero 算牌器</title>
+    <!-- noUiSlider -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text-color: #e0e0e0;
+            --accent-color: #ff6b6b;
+            --spade-color: #a0a0a0;
+            --heart-color: #ff6b6b;
+            --club-color: #90ee90;
+            --diamond-color: #87cefa;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max_width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent-color);
+        }
+
+        .section {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .slider-group {
+            margin-bottom: 30px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .range-value {
+            font-family: monospace;
+            background: #444;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .noUi-connect {
+            background: var(--accent-color);
+        }
+
+        .spade .noUi-connect {
+            background: var(--spade-color);
+        }
+
+        .heart .noUi-connect {
+            background: var(--heart-color);
+        }
+
+        .club .noUi-connect {
+            background: var(--club-color);
+        }
+
+        .diamond .noUi-connect {
+            background: var(--diamond-color);
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        button:hover {
+            transform: scale(1.02);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        pre {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .suit-icon {
+            font-size: 1.2em;
+            margin-right: 5px;
+        }
+
+        .spade-icon {
+            color: var(--spade-color);
+        }
+
+        .heart-icon {
+            color: var(--heart-color);
+        }
+
+        .club-icon {
+            color: var(--club-color);
+        }
+
+        .diamond-icon {
+            color: var(--diamond-color);
+        }
+
+        /* Checkbox Hand Selector */
+        .hand-selector {
+            display: grid;
+            grid-template-columns: repeat(13, 1fr);
+            gap: 2px;
+            margin-bottom: 15px;
+        }
+
+        .card-check {
+            display: none;
+        }
+
+        .card-label {
+            background: #444;
+            text-align: center;
+            padding: 5px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            user-select: none;
+        }
+
+        .card-check:checked+.card-label {
+            background: var(--accent-color);
+            color: black;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🦊 FoxZero 算牌器</h1>
+
+        <div class="section">
+            <h3>🃏 桌面狀態 (已出的牌)</h3>
+            <p style="font-size: 0.9em; color: #888;">請拖曳滑桿設定每種花色已出的範圍 (包含 7)。</p>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><span class="suit-icon spade-icon">♠️</span> 黑桃 (Spade)</span>
+                    <span id="s-val" class="range-value">7 - 7</span>
+                </div>
+                <div id="slider-s" class="spade"></div>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><span class="suit-icon heart-icon">❤️</span> 紅心 (Heart)</span>
+                    <span id="h-val" class="range-value">7 - 7</span>
+                </div>
+                <div id="slider-h" class="heart"></div>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><span class="suit-icon club-icon">♣️</span> 梅花 (Club)</span>
+                    <span id="c-val" class="range-value">7 - 7</span>
+                </div>
+                <div id="slider-c" class="club"></div>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><span class="suit-icon diamond-icon">♦️</span> 方塊 (Diamond)</span>
+                    <span id="d-val" class="range-value">7 - 7</span>
+                </div>
+                <div id="slider-d" class="diamond"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🙈 玩家蓋牌數</h3>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>玩家 1 (我)</label>
+                    <input type="number" id="cp1" value="0" min="0" max="13">
+                </div>
+                <div class="input-group">
+                    <label>玩家 2</label>
+                    <input type="number" id="cp2" value="0" min="0" max="13">
+                </div>
+                <div class="input-group">
+                    <label>玩家 3</label>
+                    <input type="number" id="cp3" value="0" min="0" max="13">
+                </div>
+                <div class="input-group">
+                    <label>玩家 4</label>
+                    <input type="number" id="cp4" value="0" min="0" max="13">
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🖐️ 我的手牌 <button id="clear-hand-btn"
+                    style="width: auto; padding: 5px 10px; font-size: 0.8em; float: right; margin-top: -5px;">清空手牌</button>
+            </h3>
+            <div id="hand-selection-area">
+                <!-- Configured by JS -->
+            </div>
+            <input type="hidden" id="hand-input">
+        </div>
+
+        <div class="section">
+            <h3>🧠 設定</h3>
+            <div class="slider-group">
+                <label>推演次數 (Simulations): <span id="sim-val">600</span></label>
+                <input type="range" id="sims" min="100" max="5000" step="100" value="600" style="width: 100%;">
+            </div>
+
+            <button onclick="runAnalysis()" id="run-btn">🚀 開始推演</button>
+        </div>
+
+        <div class="section" id="result-section" style="display: none;">
+            <h3>📊 推演結果</h3>
+            <pre id="result-output">計算中...</pre>
+        </div>
+    </div>
+
+    <script>
+        // --- Slider Setup ---
+        const ranks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+        const suits = [
+            { id: 's', name: 'Spade' },
+            { id: 'h', name: 'Heart' },
+            { id: 'c', name: 'Club' },
+            { id: 'd', name: 'Diamond' }
+        ];
+
+        suits.forEach(s => {
+            const slider = document.getElementById(`slider-${s.id}`);
+            noUiSlider.create(slider, {
+                start: [0, 0],
+                connect: true,
+                range: { 'min': 0, 'max': 13 },
+                step: 1,
+                pips: { mode: 'count', values: 14, density: 10, stepped: true }
+            });
+
+            slider.noUiSlider.on('update', function (values, handle) {
+                const v1 = Math.round(values[0]);
+                const v2 = Math.round(values[1]);
+                const label = document.getElementById(`${s.id}-val`);
+                if (v1 === 0 && v2 === 0) {
+                    label.innerText = "尚未出牌";
+                } else if (v1 === 0 || v2 === 0) {
+                    // Invalid technically, but snap it to 7 if they start moving one end?
+                    // Let's just show it. analysis.py should handle it.
+                    label.innerText = `${v1} - ${v2} (無效, 包含0)`;
+                } else {
+                    label.innerText = `${v1} - ${v2}`;
+                }
+            });
+        });
+
+        // --- Hand Setup ---
+        const handArea = document.getElementById('hand-selection-area');
+        const suitSymbols = { s: '♠️', h: '❤️', c: '♣️', d: '♦️' };
+        const rankLabels = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+
+        suits.forEach(s => {
+            const row = document.createElement('div');
+            row.className = 'hand-selector';
+            for (let r = 1; r <= 13; r++) {
+                const val = `${s.id.toUpperCase()}${r}`; // S1, H13.. logic handles parsing
+                const labelTxt = rankLabels[r] || r;
+
+                const id = `card-${s.id}-${r}`;
+
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.id = id;
+                chk.className = 'card-check';
+                chk.value = `${suitSymbols[s.id]}${labelTxt}`; // For display logic or ID?
+                // Logic parser expects S/H/C/D or symbols.
+
+                const lbl = document.createElement('label');
+                lbl.className = 'card-label';
+                lbl.htmlFor = id;
+                lbl.innerText = labelTxt;
+                if (s.id === 's') lbl.style.borderBottom = "2px solid #a0a0a0";
+                if (s.id === 'h') lbl.style.borderBottom = "2px solid #ff6b6b";
+                if (s.id === 'c') lbl.style.borderBottom = "2px solid #90ee90";
+                if (s.id === 'd') lbl.style.borderBottom = "2px solid #87cefa";
+
+                row.appendChild(chk);
+                row.appendChild(lbl);
+            }
+            handArea.appendChild(row);
+        });
+
+        document.getElementById('sims').addEventListener('input', (e) => {
+            document.getElementById('sim-val').innerText = e.target.value;
+        });
+
+        document.getElementById('clear-hand-btn').addEventListener('click', () => {
+            document.querySelectorAll('.card-check').forEach(cb => cb.checked = false);
+        });
+
+        // --- API Call ---
+        async function runAnalysis() {
+            const btn = document.getElementById('run-btn');
+            const resSec = document.getElementById('result-section');
+            const resOut = document.getElementById('result-output');
+
+            btn.disabled = true;
+            btn.innerText = "⏳ 推演中...";
+            resSec.style.display = 'block';
+            resOut.innerText = "正在模擬可能牌局並進行 MCTS 搜索...";
+
+            // Collect Data
+            const data = {
+                simulations: parseInt(document.getElementById('sims').value),
+                covered: {
+                    p1: parseInt(document.getElementById('cp1').value),
+                    p2: parseInt(document.getElementById('cp2').value),
+                    p3: parseInt(document.getElementById('cp3').value),
+                    p4: parseInt(document.getElementById('cp4').value),
+                },
+                ranges: {},
+                hand: []
+            };
+
+            suits.forEach(s => {
+                const vals = document.getElementById(`slider-${s.id}`).noUiSlider.get();
+                data.ranges[s.id] = [Math.round(vals[0]), Math.round(vals[1])];
+
+                // Hand
+                for (let r = 1; r <= 13; r++) {
+                    if (document.getElementById(`card-${s.id}-${r}`).checked) {
+                        data.hand.push(`${s.id.toUpperCase()}${r}`);
+                    }
+                }
+            });
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+
+                if (result.error) {
+                    resOut.innerText = "錯誤: " + result.error;
+                } else {
+                    resOut.innerText = result.output;
+                }
+            } catch (e) {
+                resOut.innerText = "請求失敗: " + e;
+            }
+
+            btn.disabled = false;
+            btn.innerText = "🚀 開始推演";
+        }
+    </script>
+</body>
+
+</html>

@@ -149,10 +149,11 @@ class SevensGame:
 
     def determinize(self, observer_player: int):
         """
-        Randomizes properties of hidden hands, respecting known constraints.
+        Randomizes properties of hidden hands AND covered cards, respecting known constraints.
         Constraints:
         1. Observer's hand is fixed.
         2. Players cannot hold cards they are 'forbidden' to have (because they passed/covered previously).
+        3. Covered cards are also unknown to observer (shuffled back into pool).
         """
         import random
         
@@ -162,18 +163,24 @@ class SevensGame:
         
         # 1. Collect all unknown cards & current counts
         unknown_cards = []
-        counts = {}
+        hand_counts = {}
+        covered_counts = {}
         
         for i in opponent_indices:
-            counts[i] = len(self.hands[i].cards)
+            hand_counts[i] = len(self.hands[i].cards)
+            covered_counts[i] = len(self.covered_cards[i])
+            
             unknown_cards.extend(self.hands[i].cards)
+            unknown_cards.extend(self.covered_cards[i])
+            
             self.hands[i].cards = [] # Clear hand
+            self.covered_cards[i] = [] # Clear covered
             
         # 2. Constraint Satisfaction Shuffle
         # Tries to shuffle until valid assignment found.
         # Fallback to random if too hard (e.g. constraints conflict due to bad tracking or deep search).
         
-        max_attempts = 100
+        max_attempts = 5
         success = False
         
         for attempt in range(max_attempts):
@@ -184,53 +191,57 @@ class SevensGame:
             possible = True
             
             temp_hands = {}
+            temp_covered = {}
             
             for i in opponent_indices:
-                num = counts[i]
-                assigned = unknown_cards[current_idx : current_idx + num]
-                current_idx += num
+                # 1. Assign Covered (No constraints usually, or complex history ones we skip)
+                num_cov = covered_counts[i]
+                assigned_cov = unknown_cards[current_idx : current_idx + num_cov]
+                current_idx += num_cov
+                temp_covered[i] = assigned_cov
                 
-                # Check constraints
-                # If any assigned card is in forbidden[i], fail.
-                # Note: forbidden set contains Card objects, need equality check.
-                # Card.__eq__ is based on suit/rank.
+                # 2. Assign Hand (Check forbidden)
+                num_hand = hand_counts[i]
+                assigned_hand = unknown_cards[current_idx : current_idx + num_hand]
+                current_idx += num_hand
                 
-                for c in assigned:
-                    # We need to check if c matches any forbidden card
-                    # Since Card objects are recreated, we iterate or use content set?
-                    # Let's assume Card hash/eq works.
-                    # Or check logic:
-                    is_forbidden = False
+                # Check constraints for HAND
+                is_forbidden = False
+                for c in assigned_hand:
                     for fc in self.forbidden_cards[i]:
                         if c.suit == fc.suit and c.rank == fc.rank:
                             is_forbidden = True
                             break
+                    if is_forbidden: break
                     
-                    if is_forbidden:
-                        possible = False
-                        break
-                
-                if not possible:
+                if is_forbidden:
+                    possible = False
                     break
                     
-                temp_hands[i] = assigned
+                temp_hands[i] = assigned_hand
                 
             if possible:
                 # Apply
                 for i in opponent_indices:
                     self.hands[i].cards = temp_hands[i]
                     self.hands[i].sort_by_suit()
+                    self.covered_cards[i] = temp_covered[i]
                 success = True
                 break
                 
         if not success:
             # Fallback: Just deal randomly (ignore constraints to keep game running)
-            # print("Warning: Could not satisfy determinization constraints. Falling back to random.")
             current_idx = 0
             for i in opponent_indices:
-                num = counts[i]
-                self.hands[i].cards = unknown_cards[current_idx : current_idx + num]
-                current_idx += num
+                # Covered
+                num_cov = covered_counts[i]
+                self.covered_cards[i] = unknown_cards[current_idx : current_idx + num_cov]
+                current_idx += num_cov
+                
+                # Hand
+                num_hand = hand_counts[i]
+                self.hands[i].cards = unknown_cards[current_idx : current_idx + num_hand]
+                current_idx += num_hand
                 self.hands[i].sort_by_suit()
 
     def is_valid_move(self, card: Card) -> bool:
