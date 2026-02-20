@@ -6,6 +6,10 @@ import sys
 import os
 import math
 import copy
+
+# Add project root to sys.path to allow running as script
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from foxzero.game import SevensGame, Card, Suit, Rank
 from foxzero.common import FoxZeroResNet
 
