@@ -28,33 +28,45 @@ SUIT_NAMES_CN = {
     Suit.CLUB: "梅花"
 }
 
-class InferenceMCTSNode:
-    """Lightweight MCTS Node for Inference."""
-    def __init__(self, parent=None, prior=0.0):
-        self.parent = parent
-        self.children = {} # Map[Card, InferenceMCTSNode]
-        self.visits = 0
-        self.value_sum = 0.0
-        self.prior = prior
+def make_predict_batch_fn(model):
+    def predict_batch_fn(obs_batch):
+        inp = torch.from_numpy(obs_batch).to(next(model.parameters()).device)
+        with torch.no_grad():
+            l, v = model(inp)
+            val = v.cpu().numpy().flatten()
+            p_dist = torch.softmax(l, dim=1).cpu().numpy()
+        return (p_dist, val)
+    return predict_batch_fn
+
+def py_game_to_cpp_engine(py_game):
+    import sevens_core
+    engine = sevens_core.SevensEngine()
+    engine.setupNewGame()
+    
+    engine.setFirstMovePerformed(py_game.first_move_performed)
+    engine.setCurrentPlayer(py_game.current_player_number)
+    engine.setDealer(py_game.dealer_number)
+    engine.setTurnCount(py_game.turn_count)
+    
+    for i, py_hand in enumerate(py_game.hands):
+        cards = [sevens_core.Card(c.suit, c.rank) for c in py_hand.cards]
+        engine.setHand(i + 1, cards)
         
-    def ucb_score(self, c_puct):
-        if self.parent is None or self.parent.visits == 0:
-            return float('inf')
+    for i, py_covered in enumerate(py_game.covered_cards):
+        cards = [sevens_core.Card(c.suit, c.rank) for c in py_covered]
+        engine.setCoveredCards(i + 1, cards)
         
-        q = self.value_sum / self.visits if self.visits > 0 else 0.0
-        # U = c * P * sqrt(N_parent) / (1 + N_child)
-        u = c_puct * self.prior * math.sqrt(self.parent.visits) / (1 + self.visits)
-        return q + u
+    for suit in range(1, 5):
+        ps = py_game.played_cards[suit - 1]
+        low = ps.lowest_card.rank if ps.lowest_card else 0
+        high = ps.highest_card.rank if ps.highest_card else 0
+        engine.setPlayedCardRange(suit, low, high)
+        
+    return engine
 
 def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int, c_puct=1.0, god_mode=True):
-    """
-    Runs MCTS for a single move decision.
-    god_mode=True: AI sees all hands (Upper Bound / Cheating).
-    god_mode=False: AI randomizes hidden hands (Determinization).
-    """
-    root = InferenceMCTSNode()
+    import sevens_core
     
-    # 0. Check valid moves
     current_player = game.current_player_number
     valid_moves = game.get_all_valid_moves(current_player)
     
@@ -63,224 +75,24 @@ def run_mcts_inference(game: SevensGame, model: FoxZeroResNet, simulations: int,
     if len(valid_moves) == 1:
         return valid_moves[0]
         
-    # Expand root once to get priors
-    state_tensor = game.get_state_tensor(current_player)
-    inp = torch.tensor(state_tensor, dtype=torch.float32).unsqueeze(0).to(next(model.parameters()).device)
+    predict_batch_fn = make_predict_batch_fn(model)
+    engine = py_game_to_cpp_engine(game)
     
-    with torch.no_grad():
-        logits, _ = model(inp)
-        probs = torch.softmax(logits, dim=1).cpu().numpy().flatten()
-        
-    # Create Root Children
-    for card in valid_moves:
-        s, r = card.to_tensor_index()
-        idx = s * 13 + r
-        prior = probs[idx]
-        root.children[card] = InferenceMCTSNode(parent=root, prior=prior)
-        
-    # Main Loop
-    import sys
-    for i in range(simulations):
-        if (i + 1) % 10 == 0:
-            print(f"\r🔍 MCTS 思考中... {i + 1}/{simulations}", end="")
-            sys.stdout.flush()
+    best_card_idx = sevens_core.run_mcts_cpp(
+        engine,
+        predict_batch_fn,
+        simulations,
+        c_puct,
+        god_mode,
+        8 # num_threads
+    )
+    
+    if best_card_idx == -1: return None
+    
+    s = best_card_idx // 13 + 1
+    r = best_card_idx % 13 + 1
+    return Card(s, r)
 
-        node = root
-        
-        # 1. Determinization / Copy
-        scratch_game = copy.deepcopy(game)
-        if not god_mode:
-            # Determinize: Shuffle opponents' hands based on known info
-            scratch_game.determinize(observer_player=current_player)
-            
-        # 2. Selection
-        # 2. Selection
-        while True:
-            # Check valid moves for current player in this specific determinization
-            current_p = scratch_game.current_player_number
-            valid_moves = scratch_game.get_all_valid_moves(current_p)
-            
-            # If no valid moves, it's terminal or pass-stuck?
-            if len(valid_moves) == 0:
-                break
-                
-            # Filter children that are valid in this universe
-            feasible_children = [c for c in valid_moves if c in node.children]
-            unexpanded = [c for c in valid_moves if c not in node.children]
-            
-            # If there are unexpanded moves valid in this universe, we should stop selection 
-            # and let the Expansion phase handle this node (add the unexpanded child).
-            if len(unexpanded) > 0:
-                # We stop at 'node' and will expand from here.
-                break
-                
-            if len(feasible_children) > 0:
-                # All valid moves are already in tree. Select best feasible child.
-                # Only compare UCB among feasible children
-                card = max(feasible_children, key=lambda c: node.children[c].ucb_score(c_puct))
-                node = node.children[card]
-                
-                scratch_game.make_move(card)
-                scratch_game.next_player()
-                
-                if scratch_game.is_game_over():
-                    break
-            else:
-                # Should not happen if len(valid_moves) > 0 and unexpanded check failed
-                break
-                
-        # 3. Expansion & Evaluation
-        leaf_player = scratch_game.current_player_number
-        value = 0.0
-        
-        if scratch_game.is_game_over():
-            # Terminal state (Global)
-            rewards = scratch_game.calculate_final_rewards()
-            # We don't have a 'value' relative to a single player here easily, 
-            # but backprop handles vector rewards if implemented fully. 
-            # For now, let's just pick the reward for the leaf_player to fit 'value' scalar api,
-            # but usually we handle terminal differently. 
-            # Note: The backprop loop below assumes 'value' flip.
-            # Let's treat it as 0.0 value but set a flag? 
-            # Actually, let's use the loop below which is designed for scalar value.
-            # If game over, we can't use scalar value easily.
-            # Hack: loop expects 'value' for 'leaf_player'.
-            pass 
-        else:
-            # Not Game Over -> Expand
-            leaf_player = scratch_game.current_player_number
-            valid_moves_leaf = scratch_game.get_all_valid_moves(leaf_player)
-            
-            if len(valid_moves_leaf) > 0:
-                # Check which ones are new
-                unexpanded = [c for c in valid_moves_leaf if c not in node.children]
-                
-                if len(unexpanded) > 0:
-                    # Need to evaluate state to get priors/value for these new moves
-                    s_t = scratch_game.get_state_tensor(leaf_player)
-                    inp = torch.tensor(s_t, dtype=torch.float32).unsqueeze(0).to(next(model.parameters()).device)
-                    with torch.no_grad():
-                        l, v = model(inp)
-                        val = v.item()
-                        p_dist = torch.softmax(l, dim=1).cpu().numpy().flatten()
-                    
-                    # Add NEW children
-                    for c in unexpanded:
-                        s, r = c.to_tensor_index()
-                        idx = s * 13 + r
-                        # Use the prior from THIS evaluation. 
-                        # Note: This might bias priors based on the specific hand we held when first discovering the move.
-                        # This is an acceptable approximation for IS-MCTS.
-                        node.children[c] = InferenceMCTSNode(parent=node, prior=p_dist[idx])
-                        
-                    value = val
-                else:
-                    # All moves expanded, but we stopped here?
-                    # This happens if selection loop broke because we want to Rollout?
-                    # Or maybe we just treat this node as the leaf to evaluate score?
-                    # If we are here, it means we traversed deeply and either:
-                    # 1. Game Over (handled above)
-                    # 2. We stopped at a "fully expanded node"?? 
-                    # Wait, Selection loop only breaks if:
-                    # - Game Over
-                    # - Unexpanded moves exist (Handled above)
-                    # - No valid moves (Handled below)
-                    # - feasible_children is empty (impossible if valid>0 and unexpanded=0)
-                    
-                    # So actually, if we are here and valid_moves>0 and len(unexpanded)==0:
-                    # We shouldn't be here?
-                    # Ah, loop runs 'simulations' times. The Selection loop breaks.
-                    # If selection loop ran until Game Over, we are in `if game_over`.
-                    # If selection loop broke due to `unexpanded`, we are in `if len(unexpanded) > 0`.
-                    # So this logic covers it.
-                    
-                    # What if we reached a leaf that is fully expanded?
-                    # Selection loop continues UNTIL a leaf?
-                    # Standard MCTS: select until we fall out of tree.
-                    # My selection loop: `while len(node.children) > 0`: but filtered.
-                    # If node has children but NONE are feasible: `feasible_children` empty.
-                    # Then it breaks.
-                    # Then `unexpanded` will be ALL `valid_moves` (since they are valid but not in children? No).
-                    # Loop:
-                    # valid_moves = [A, B]
-                    # children = [C, D] (from other universes)
-                    # feasible = []
-                    # unexpanded = [A, B]
-                    # Breaks.
-                    # Here: unexpanded=[A,B]. Adds them. OK.
-                    pass
-                    
-            else:
-                # No valid moves (Pass logic?)
-                # In Sevens, you must cover. get_all_valid_moves returns hand if must cover.
-                # So if len==0, it's really stuck or empty hand?
-                # Empty hand = Game Over, handled by game.is_game_over().
-                value = 0.0
-                
-        # 4. Backpropagation
-        # Propagate value up the tree.
-        # Value 'v' is from perspective of 'leaf_player'.
-        # We need to toggle sign at each level if it's opponent (Zero-Sum assumption).
-        # Or more robustly: evaluate relative reward.
-        
-        # Robust Backprop for Multiplayer (Score-based)
-        # If terminal:
-        if scratch_game.is_game_over():
-            rewards = scratch_game.calculate_final_rewards()
-            # standard backprop below expects 'value' for 'leaf_player'
-            # rewards is 0-indexed array [p1, p2, p3, p4]
-            # leaf_player is 1-based index (1..4)
-            r = rewards[leaf_player - 1]
-            # Normalize reward? rewards are like +100, -10, etc.
-            # MCTS expects [-1, 1].
-            # Sigmoid or Tanh? Or just sign?
-            # Sevens rewards: Winner ~ +100. Losers ~ -10 to -50.
-            # Let's simple clamp or sign.
-            if r > 0: value = 1.0
-            elif r < 0: value = -1.0
-            else: value = 0.0
-            
-            # Fall through to standard backprop using this 'value'
-        
-        # Simplified Backprop for Inference:
-        # Assume 2-player zero-sum dynamic? No, it's 4-player.
-        # But `value` output from Net is "Win Probability/Score" for current player.
-        # Standard: v maps to [-1, 1].
-        # If P1 has v=0.8, P2/3/4 likely have negative.
-        # When backing up to parent (who was P_prev), we need P_prev's value.
-        # Approx: P_prev value = -P_curr value (if 2 player).
-        # For 4-player, let's stick to -v/3 or just -v?
-        # Let's use: -value (Adversarial assumption).
-        
-        curr = node
-        curr_val = value # Value for 'leaf_player'
-        
-        depth_sanity = 0
-        while curr.parent is not None:
-            depth_sanity += 1
-            if depth_sanity > 60:
-                print(f"\n⚠️ MCTS Backprop Loop Detected! Depth {depth_sanity}. Breaking.")
-                break
-
-            # Determine return for the player who acted to reach 'curr'
-            # (which is curr.parent's player)
-            # If curr_val is for 'leaf_player', and we move up...
-            # The opponent's gain is roughly my loss.
-            curr_val = -curr_val
-            
-            curr.value_sum += curr_val
-            curr.visits += 1
-            curr = curr.parent
-
-    print() # Newline after progress bar
-
-    # Return best move
-    # Select child with most visits
-    if len(root.children) == 0:
-        return None
-        
-    best_card = max(root.children, key=lambda c: root.children[c].visits)
-    return best_card
 
 class Agent:
     def select_move(self, game: SevensGame, player_num: int) -> Card:
@@ -306,6 +118,7 @@ class FoxZeroAgent(Agent):
         else:
             print("使用隨機權重進行測試。")
         self.model.eval()
+        self.model = torch.jit.script(self.model)
         self.simulations = simulations
         self.c_puct = c_puct
         self.god_mode = god_mode
@@ -315,13 +128,20 @@ class FoxZeroAgent(Agent):
         if not valid_moves:
             return None
         
-        return run_mcts_inference(
+        import time
+        start_time = time.time()
+        
+        best_move = run_mcts_inference(
             game, 
             self.model, 
             simulations=self.simulations, 
             c_puct=self.c_puct, 
             god_mode=self.god_mode
         )
+        
+        elapsed = time.time() - start_time
+        print(f"⏱️ MCTS 耗時: {elapsed:.2f} 秒 ({self.simulations} 次模擬)")
+        return best_move
 
 class HumanAgent(Agent):
     def select_move(self, game: SevensGame, player_num: int) -> Card:

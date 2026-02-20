@@ -1,4 +1,6 @@
 #include "SevensGame.h"
+#include <algorithm>
+#include <random>
 #include <stdexcept>
 
 SevensGame::SevensGame() : SevensGame(4) {}
@@ -61,10 +63,35 @@ std::vector<Card> SevensGame::getAllValidMoves(int playerNumber) const {
   }
 
   // COVER RULE: If no valid moves on board, ALL cards in hand are valid for
-  // covering.
+  // covering (with suicidal prevention).
   if (validMoves.empty()) {
     for (const auto &card : hands[playerIndex].getHand()) {
-      validMoves.push_back(card);
+      bool isSuicidal = false;
+      int suit = card.getSuit();
+      int rank = card.getRank();
+
+      if (rank > 7) {
+        // If we hold rank + 1, covering rank is suicidal
+        if (hands[playerIndex].getCard(suit, rank + 1).has_value()) {
+          isSuicidal = true;
+        }
+      } else if (rank < 7) {
+        // If we hold rank - 1, covering rank is suicidal
+        if (hands[playerIndex].getCard(suit, rank - 1).has_value()) {
+          isSuicidal = true;
+        }
+      }
+
+      if (!isSuicidal) {
+        validMoves.push_back(card);
+      }
+    }
+    // Fallback: in the impossible case all are suicidal (due to cycle, which is
+    // impossible in Sevens), allow all.
+    if (validMoves.empty()) {
+      for (const auto &card : hands[playerIndex].getHand()) {
+        validMoves.push_back(card);
+      }
     }
   }
 
@@ -232,4 +259,172 @@ SevensGame::getPlayedCards() const {
 
 const std::vector<std::vector<bool>> &SevensGame::getPassRecord() const {
   return passRecord;
+}
+
+// Custom copy constructor for deep cloning
+SevensGame::SevensGame(const SevensGame &other)
+    : numberOfPlayers(other.numberOfPlayers),
+      currentPlayerNumber(other.currentPlayerNumber),
+      dealerNumber(other.dealerNumber),
+      firstMovePerformed(other.firstMovePerformed), turnCount(other.turnCount),
+      hands(other.hands), coveredCards(other.coveredCards),
+      passRecord(other.passRecord) {
+  for (const auto &ps : other.playedCards) {
+    auto new_ps = std::make_unique<PlacedSuit>(ps->getSuit());
+    if (ps->getLowestCard().has_value())
+      new_ps->setLowestCard(ps->getLowestCard().value());
+    if (ps->getHighestCard().has_value())
+      new_ps->setHighestCard(ps->getHighestCard().value());
+    playedCards.push_back(std::move(new_ps));
+  }
+}
+
+SevensGame &SevensGame::operator=(const SevensGame &other) {
+  if (this == &other)
+    return *this;
+  numberOfPlayers = other.numberOfPlayers;
+  currentPlayerNumber = other.currentPlayerNumber;
+  dealerNumber = other.dealerNumber;
+  firstMovePerformed = other.firstMovePerformed;
+  turnCount = other.turnCount;
+  hands = other.hands;
+  coveredCards = other.coveredCards;
+  passRecord = other.passRecord;
+  playedCards.clear();
+  for (const auto &ps : other.playedCards) {
+    auto new_ps = std::make_unique<PlacedSuit>(ps->getSuit());
+    if (ps->getLowestCard().has_value())
+      new_ps->setLowestCard(ps->getLowestCard().value());
+    if (ps->getHighestCard().has_value())
+      new_ps->setHighestCard(ps->getHighestCard().value());
+    playedCards.push_back(std::move(new_ps));
+  }
+  return *this;
+}
+
+std::unique_ptr<SevensGame> SevensGame::clone() const {
+  return std::make_unique<SevensGame>(*this);
+}
+
+void SevensGame::setFirstMovePerformed(bool val) { firstMovePerformed = val; }
+void SevensGame::setCurrentPlayer(int playerNum) {
+  currentPlayerNumber = playerNum;
+}
+void SevensGame::setDealer(int playerNum) { dealerNumber = playerNum; }
+
+void SevensGame::setHand(int playerNum, const std::vector<Card> &cards) {
+  checkIsValidPlayerIndex(playerNum - 1);
+  hands[playerNum - 1] = Hand();
+  for (const auto &c : cards) {
+    hands[playerNum - 1].addCard(c);
+  }
+}
+
+void SevensGame::setCoveredCards(int playerNum,
+                                 const std::vector<Card> &cards) {
+  checkIsValidPlayerIndex(playerNum - 1);
+  coveredCards[playerNum - 1] = cards;
+}
+
+void SevensGame::setPlayedCardRange(int suit, int lowRank, int highRank) {
+  if (suit < 1 || suit > 4)
+    return;
+  auto new_ps = std::make_unique<PlacedSuit>(suit);
+  if (lowRank > 0 && highRank > 0) {
+    new_ps->setLowestCard(Card(suit, lowRank));
+    new_ps->setHighestCard(Card(suit, highRank));
+  }
+  playedCards[suit - 1] = std::move(new_ps);
+}
+
+int SevensGame::getTurnCount() const { return turnCount; }
+void SevensGame::setTurnCount(int count) { turnCount = count; }
+
+void SevensGame::determinize(int observerPlayer) {
+  int observerIdx = observerPlayer - 1;
+  std::vector<int> opponentIndices;
+  for (int i = 0; i < numberOfPlayers; ++i) {
+    if (i != observerIdx)
+      opponentIndices.push_back(i);
+  }
+
+  std::vector<Card> unknownCards;
+  std::vector<int> handCounts(numberOfPlayers, 0);
+  std::vector<int> coveredCounts(numberOfPlayers, 0);
+
+  for (int i : opponentIndices) {
+    handCounts[i] = hands[i].getCardCount();
+    coveredCounts[i] = coveredCards[i].size();
+
+    for (const auto &c : hands[i].getHand())
+      unknownCards.push_back(c);
+    for (const auto &c : coveredCards[i])
+      unknownCards.push_back(c);
+
+    hands[i] = Hand();
+    coveredCards[i].clear();
+  }
+
+  if (unknownCards.empty())
+    return;
+  std::random_device rd;
+  std::mt19937 g(rd());
+
+  int max_attempts = 5;
+  bool success = false;
+
+  for (int attempt = 0; attempt < max_attempts; ++attempt) {
+    std::shuffle(unknownCards.begin(), unknownCards.end(), g);
+    int current_idx = 0;
+    bool possible = true;
+
+    std::vector<Hand> tempHands(numberOfPlayers);
+    std::vector<std::vector<Card>> tempCovered(numberOfPlayers);
+
+    for (int i : opponentIndices) {
+      int num_cov = coveredCounts[i];
+      for (int k = 0; k < num_cov; ++k)
+        tempCovered[i].push_back(unknownCards[current_idx++]);
+
+      int num_hand = handCounts[i];
+      for (int k = 0; k < num_hand; ++k) {
+        Card c = unknownCards[current_idx++];
+        int suitIdx = c.getSuit() - 1;
+
+        // Strict deterministic constraint: If passed on this suit, assume they
+        // don't hold any playable cards of this suit. For simplicity, assume
+        // they don't hold the suit at all to greatly narrow down the tree
+        // search space.
+        if (passRecord[i][suitIdx]) {
+          possible = false;
+          break;
+        }
+        tempHands[i].addCard(c);
+      }
+      if (!possible)
+        break;
+    }
+
+    if (possible) {
+      for (int i : opponentIndices) {
+        hands[i] = tempHands[i];
+        coveredCards[i] = tempCovered[i];
+      }
+      success = true;
+      break;
+    }
+  }
+
+  if (!success) {
+    int current_idx = 0;
+    for (int i : opponentIndices) {
+      int num_cov = coveredCounts[i];
+      for (int k = 0; k < num_cov; ++k)
+        coveredCards[i].push_back(unknownCards[current_idx++]);
+
+      int num_hand = handCounts[i];
+      for (int k = 0; k < num_hand; ++k)
+        hands[i].addCard(unknownCards[current_idx++]);
+    }
+  }
 }

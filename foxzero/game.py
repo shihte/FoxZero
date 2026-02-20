@@ -261,7 +261,24 @@ class SevensGame:
             
         # Rule: If you cannot play any card, you MUST cover one.
         # Implication: Any card in hand is a valid "action" (to be covered).
-        return list(hand.cards)
+        # We prevent "suicidal" covers: don't cover an inner sequence card if holding the outer sequence card of the same suit.
+        valid_covers = []
+        for card in hand.cards:
+            is_suicidal = False
+            if card.rank > 7:
+                if any(c.suit == card.suit and c.rank == card.rank + 1 for c in hand.cards):
+                    is_suicidal = True
+            elif card.rank < 7:
+                if any(c.suit == card.suit and c.rank == card.rank - 1 for c in hand.cards):
+                    is_suicidal = True
+                    
+            if not is_suicidal:
+                valid_covers.append(card)
+                
+        if not valid_covers:
+            valid_covers = list(hand.cards)
+            
+        return valid_covers
 
     def make_move(self, card: Card):
         player_idx = self.current_player_number - 1

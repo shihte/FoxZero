@@ -343,32 +343,56 @@
                 推演設定
             </h3>
 
-            <!-- 玩家蓋牌數 — 橫向 4 格 -->
+            <!-- 玩家蓋牌數 — 橫向 4 格 with +/- buttons -->
             <p class="text-xs text-anthropic-mid mb-3 font-heading font-semibold tracking-wide uppercase">玩家蓋牌數</p>
             <div class="grid grid-cols-4 gap-3 mb-8">
                 <div>
                     <label class="block text-xs text-center font-heading font-semibold text-anthropic-dark mb-1">我
                         (P1)</label>
-                    <input type="number" id="cp1" value="0" min="0" max="13"
-                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                    <div class="flex items-center gap-1">
+                        <button onclick="stepCover('cp1',-1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">−</button>
+                        <input type="number" id="cp1" value="0" min="0" max="13"
+                            class="flex-1 min-w-0 px-1 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                        <button onclick="stepCover('cp1',1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">+</button>
+                    </div>
                 </div>
                 <div>
                     <label
                         class="block text-xs text-center font-heading font-semibold text-anthropic-dark mb-1">P2</label>
-                    <input type="number" id="cp2" value="0" min="0" max="13"
-                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                    <div class="flex items-center gap-1">
+                        <button onclick="stepCover('cp2',-1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">−</button>
+                        <input type="number" id="cp2" value="0" min="0" max="13"
+                            class="flex-1 min-w-0 px-1 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                        <button onclick="stepCover('cp2',1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">+</button>
+                    </div>
                 </div>
                 <div>
                     <label
                         class="block text-xs text-center font-heading font-semibold text-anthropic-dark mb-1">P3</label>
-                    <input type="number" id="cp3" value="0" min="0" max="13"
-                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                    <div class="flex items-center gap-1">
+                        <button onclick="stepCover('cp3',-1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">−</button>
+                        <input type="number" id="cp3" value="0" min="0" max="13"
+                            class="flex-1 min-w-0 px-1 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                        <button onclick="stepCover('cp3',1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">+</button>
+                    </div>
                 </div>
                 <div>
                     <label
                         class="block text-xs text-center font-heading font-semibold text-anthropic-dark mb-1">P4</label>
-                    <input type="number" id="cp4" value="0" min="0" max="13"
-                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                    <div class="flex items-center gap-1">
+                        <button onclick="stepCover('cp4',-1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">−</button>
+                        <input type="number" id="cp4" value="0" min="0" max="13"
+                            class="flex-1 min-w-0 px-1 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                        <button onclick="stepCover('cp4',1)"
+                            class="w-8 h-9 rounded-lg bg-anthropic-lightgray hover:bg-anthropic-mid hover:text-white text-lg font-bold transition-colors">+</button>
+                    </div>
                 </div>
             </div>
 
@@ -405,6 +429,51 @@
             </div>
         </div>
 
+        <!-- ===== SECTION 4: 快速出牌紀錄 ===== -->
+        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-anthropic-lightgray">
+            <h3 class="text-xl font-bold mb-1 heading-font text-anthropic-dark flex items-center gap-2">
+                <svg class="w-5 h-5 text-anthropic-green" fill="none" stroke="currentColor" stroke-width="2"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                快速出牌紀錄
+            </h3>
+            <p class="text-xs text-anthropic-mid mb-5">輸入其他玩家剛出的牌 (數字 1~13)，按下「新增一輪」即可一鍵更新桌面。留空 = 該花色本輪無出牌。</p>
+            <div class="grid grid-cols-4 gap-3 mb-4">
+                <div>
+                    <label class="block text-xs text-center font-heading font-semibold mb-1" style="color:#141413">♠
+                        黑桃</label>
+                    <input type="number" id="qp-s" min="1" max="13" placeholder="—"
+                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-gray-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-center font-heading font-semibold mb-1" style="color:#d97757">❤
+                        紅心</label>
+                    <input type="number" id="qp-h" min="1" max="13" placeholder="—"
+                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-orange transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-center font-heading font-semibold mb-1" style="color:#788c5d">♣
+                        梅花</label>
+                    <input type="number" id="qp-c" min="1" max="13" placeholder="—"
+                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-green transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-center font-heading font-semibold mb-1" style="color:#6a9bcc">♦
+                        方塊</label>
+                    <input type="number" id="qp-d" min="1" max="13" placeholder="—"
+                        class="w-full px-2 py-2 bg-anthropic-light border border-anthropic-lightgray rounded-lg text-center text-sm focus:outline-none focus:ring-2 focus:ring-anthropic-blue transition">
+                </div>
+            </div>
+            <button onclick="applyQuickPlay()"
+                class="w-full py-3 bg-anthropic-green text-white font-heading font-bold text-base rounded-xl shadow hover:bg-green-700 hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-anthropic-green/40 flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                新增一輪
+            </button>
+        </div>
+
         <!-- ===== RUN BUTTON ===== -->
         <button onclick="runAnalysis()" id="run-btn"
             class="w-full py-5 bg-anthropic-orange text-white font-heading font-bold text-xl rounded-2xl shadow-lg hover:bg-anthropic-hoverorange hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-anthropic-orange/40">
@@ -422,6 +491,19 @@
                 推演結論
             </h3>
 
+            <!-- Progress Bar Area -->
+            <div id="progress-container" class="hidden mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-semibold heading-font text-gray-300">MCTS 推演狀態</span>
+                    <span id="progress-text" class="text-sm font-mono font-bold text-anthropic-orange">0%</span>
+                </div>
+                <div class="w-full bg-gray-700/50 rounded-full h-2.5 mb-2">
+                    <div id="progress-bar" class="bg-anthropic-orange h-2.5 rounded-full"
+                        style="width: 0%; transition: width 0.1s linear;"></div>
+                </div>
+                <div id="time-display" class="text-sm font-mono text-gray-300 mt-2 text-right hidden"></div>
+            </div>
+
             <!-- AI Suggestion Card Area -->
             <div id="suggestion-card-area"
                 class="hidden mb-6 flex flex-col md:flex-row items-center gap-6 bg-black/30 p-5 rounded-xl border border-gray-700">
@@ -433,16 +515,9 @@
                     <span id="suggestion-suit-icon" class="mr-1"></span>
                     <span id="suggestion-rank-text" class="text-anthropic-dark"></span>
                 </div>
-                <div class="flex-1 flex flex-col gap-3 w-full md:w-auto mt-4 md:mt-0">
-                    <button id="apply-btn"
-                        class="w-full py-3 bg-anthropic-blue hover:bg-blue-600 text-white font-bold rounded-xl transition-colors shadow flex items-center justify-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
-                            </path>
-                        </svg>
-                        套用此建議
-                    </button>
-                    <p class="text-xs text-gray-400 text-center">自動更新桌面狀態與您的手牌</p>
+                <div class="flex-1 flex flex-col gap-1 w-full md:w-auto mt-4 md:mt-0">
+                    <p id="auto-apply-status" class="text-sm text-green-400 font-heading font-semibold text-center">✅
+                        已自動套用至牌局</p>
                 </div>
             </div>
 
@@ -583,6 +658,35 @@
             resOut.textContent = '正在建立決策蒙地卡羅樹 (MCTS)...';
             resSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+            const progCont = document.getElementById('progress-container');
+            const progBar = document.getElementById('progress-bar');
+            const progText = document.getElementById('progress-text');
+            const timeDisp = document.getElementById('time-display');
+            const cardArea = document.getElementById('suggestion-card-area');
+
+            progCont.classList.remove('hidden');
+            timeDisp.classList.add('hidden');
+            cardArea.classList.add('hidden');
+            resOut.classList.remove('hidden');
+
+            progBar.style.width = '0%';
+            progText.textContent = '0%';
+
+            let simProgress = 0;
+            const simsForEst = parseInt(document.getElementById('sims').value) || 2000;
+            // ~7s for 4000 sims on C++ Multithreading -> ~1.75ms per sim
+            const estimatedMs = simsForEst * 1.75;
+            const updateInterval = 50;
+            const increment = 95 / (estimatedMs / updateInterval);
+
+            const progInterval = setInterval(() => {
+                if (simProgress < 95) {
+                    simProgress += increment;
+                    progBar.style.width = `${Math.min(95, simProgress)}%`;
+                    progText.textContent = `${Math.floor(Math.min(95, simProgress))}%`;
+                }
+            }, updateInterval);
+
             const data = {
                 simulations: parseInt(document.getElementById('sims').value),
                 covered: {
@@ -615,7 +719,9 @@
                 });
                 const j = await res.json();
 
-                const cardArea = document.getElementById('suggestion-card-area');
+                clearInterval(progInterval);
+                progBar.style.width = '100%';
+                progText.textContent = '100%';
 
                 if (j.error) {
                     resOut.innerHTML = `<span class="text-anthropic-orange font-bold">⚠️ 推演中斷:</span>\n${j.error}`;
@@ -624,6 +730,11 @@
                     const out = j.output;
                     cardArea.classList.remove('hidden');
                     cardArea.classList.add('flex');
+
+                    if (out.elapsed) {
+                        timeDisp.textContent = `⏱️ 推演耗時: ${out.elapsed} 秒`;
+                        timeDisp.classList.remove('hidden');
+                    }
 
                     const badge = document.getElementById('suggestion-badge');
                     const vis = document.getElementById('suggestion-visual');
@@ -649,15 +760,9 @@
 
                     resOut.classList.add('hidden'); // Hide raw logs
 
-                    // Wire Apply block
-                    const applyBtn = document.getElementById('apply-btn');
-
-                    // Reset apply button state from previous usage
-                    applyBtn.disabled = false;
-                    applyBtn.classList.remove('opacity-50', 'pointer-events-none');
-                    applyBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>套用此建議`;
-
-                    applyBtn.onclick = () => { applySuggestion(out.suit, out.rank, out.is_play); };
+                    // Auto-apply suggestion immediately
+                    applySuggestion(out.suit, out.rank, out.is_play);
+                    document.getElementById('auto-apply-status').textContent = '✅ 已自動套用至牌局';
 
                 } else if (j.output) {
                     // Fallback for string
@@ -666,6 +771,7 @@
                     resOut.textContent = j.output;
                 }
             } catch (e) {
+                clearInterval(progInterval);
                 document.getElementById('suggestion-card-area').classList.add('hidden');
                 resOut.classList.remove('hidden');
                 resOut.innerHTML = `<span class="text-red-400 font-bold">🚫 連線失敗 (${e})</span>`;
@@ -684,32 +790,59 @@
 
             // 2. Adjust board/covers
             if (is_play) {
-                const toggle = document.getElementById(`not-started-${suit}`);
-                const slider = document.getElementById(`slider-${suit}`);
-
-                if (toggle.checked) {
-                    toggle.checked = false;
-                    toggle.dispatchEvent(new Event('change'));
-                }
-
-                // Expand slider range
-                let [low, high] = slider.noUiSlider.get().map(Number);
-                if (rank < low) {
-                    slider.noUiSlider.set([rank, high]);
-                } else if (rank > high) {
-                    slider.noUiSlider.set([low, rank]);
-                }
+                applyCardToBoard(suit, rank);
             } else {
                 // Must be a cover
                 const p1cov = document.getElementById('cp1');
                 p1cov.value = parseInt(p1cov.value) + 1;
             }
+        }
 
-            // Pulse UI indication
-            const badge = document.getElementById('suggestion-badge');
-            badge.textContent = "已套用此策略！";
-            document.getElementById('apply-btn').disabled = true;
-            document.getElementById('apply-btn').classList.add('opacity-50', 'pointer-events-none');
+        function applyCardToBoard(suit, rank) {
+            const toggle = document.getElementById(`not-started-${suit}`);
+            const slider = document.getElementById(`slider-${suit}`);
+
+            if (toggle.checked) {
+                toggle.checked = false;
+                toggle.dispatchEvent(new Event('change'));
+            }
+
+            // Expand slider range
+            let [low, high] = slider.noUiSlider.get().map(Number);
+            if (rank < low) {
+                slider.noUiSlider.set([rank, high]);
+            } else if (rank > high) {
+                slider.noUiSlider.set([low, rank]);
+            }
+        }
+
+        function stepCover(id, delta) {
+            const el = document.getElementById(id);
+            let v = parseInt(el.value) || 0;
+            v = Math.max(0, Math.min(13, v + delta));
+            el.value = v;
+        }
+
+        function applyQuickPlay() {
+            const ids = ['s', 'h', 'c', 'd'];
+            let applied = 0;
+            ids.forEach(sid => {
+                const inp = document.getElementById(`qp-${sid}`);
+                const val = parseInt(inp.value);
+                if (val >= 1 && val <= 13) {
+                    applyCardToBoard(sid, val);
+                    inp.value = '';
+                    applied++;
+                }
+            });
+            if (applied === 0) {
+                // Flash hint
+                ids.forEach(sid => {
+                    const inp = document.getElementById(`qp-${sid}`);
+                    inp.classList.add('ring-2', 'ring-red-400');
+                    setTimeout(() => inp.classList.remove('ring-2', 'ring-red-400'), 800);
+                });
+            }
         }
     </script>
 </body>

@@ -268,6 +268,8 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     old_stdout = sys.stdout
     sys.stdout = mystdout = StringIO()
     
+    import time
+    start_time = time.time()
     try:
         best_card = run_mcts_inference(
             game, 
@@ -280,6 +282,7 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
         import traceback
         return {"error": f"推演發生錯誤：{e}\n{traceback.format_exc()}\n{info}"}
         
+    elapsed = time.time() - start_time
     sys.stdout = old_stdout
     log_output = mystdout.getvalue()
     
@@ -292,6 +295,7 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
         "suit": suit_map[best_card.suit],
         "rank": best_card.rank,
         "is_play": is_play,
+        "elapsed": f"{elapsed:.3f}",
         "info": info,
         "log": log_output
     }

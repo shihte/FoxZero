@@ -6,12 +6,18 @@
 #include "Hand.h"
 #include "PlacedSuit.h"
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 class SevensGame {
 public:
   SevensGame();
   SevensGame(int numberOfPlayers);
+
+  // Custom copy constructor for deep cloning
+  SevensGame(const SevensGame &other);
+  SevensGame &operator=(const SevensGame &other);
+  std::unique_ptr<SevensGame> clone() const;
 
   void setupNewGame();
   void nextPlayer();
@@ -43,6 +49,19 @@ public:
   // Internal helper for covering - NOW PUBLIC for Python Binding
   void coverCard(const Card &card);
 
+  // State Initialization API for UI / Python binding
+  void setFirstMovePerformed(bool val);
+  void setCurrentPlayer(int playerNum);
+  void setDealer(int playerNum);
+  void setHand(int playerNum, const std::vector<Card> &cards);
+  void setCoveredCards(int playerNum, const std::vector<Card> &cards);
+  void setPlayedCardRange(int suit, int lowRank, int highRank);
+
+  // AI Inference Helper
+  void determinize(int observerPlayer);
+  int getTurnCount() const;
+  void setTurnCount(int count);
+
 private:
   void performInitialDeal();
   void placeCard(const Card &card);
@@ -53,6 +72,7 @@ private:
   int currentPlayerNumber;
   int dealerNumber;
   bool firstMovePerformed;
+  int turnCount;
   std::vector<Hand> hands;
   std::vector<std::vector<Card>> coveredCards; // Added for Cover Rule
   std::vector<std::unique_ptr<PlacedSuit>> playedCards;

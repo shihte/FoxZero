@@ -1,6 +1,8 @@
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 import sys
+import os
+import subprocess
 import setuptools
 
 class get_pybind_include(object):
@@ -12,6 +14,19 @@ class get_pybind_include(object):
         import pybind11
         return pybind11.get_include()
 
+extra_includes = [
+    get_pybind_include(),
+    '7Game/include'
+]
+
+if sys.platform == 'darwin':
+    try:
+        sdk_path = subprocess.check_output(['xcrun', '--show-sdk-path']).decode('utf-8').strip()
+        extra_includes.append(os.path.join(sdk_path, 'usr/include/c++/v1'))
+        extra_includes.append(os.path.join(sdk_path, 'usr/include'))
+    except Exception:
+        pass
+
 ext_modules = [
     Extension(
         'sevens_core',
@@ -22,16 +37,8 @@ ext_modules = [
             '7Game/src/Deck.cpp',
             '7Game/src/PlacedSuit.cpp',
             '7Game/src/SevensGame.cpp',
-            # '7Game/src/ComputerPlayer.cpp', # Not needed for core logic?
-            # '7Game/src/HumanPlayerCLI.cpp', # Not needed
-            # '7Game/src/SevensGameCLI.cpp', # Not needed
-            # '7Game/src/main.cpp' # Not needed
         ],
-        include_dirs=[
-            # Path to pybind11 headers
-            get_pybind_include(),
-            '7Game/include'
-        ],
+        include_dirs=extra_includes,
         language='c++'
     ),
 ]
@@ -60,9 +67,7 @@ class BuildExt(build_ext):
     }
 
     if sys.platform == 'darwin':
-        darwin_opts = ['-stdlib=libc++', '-mmacosx-version-min=10.14']
-        c_opts['unix'] += darwin_opts
-        l_opts['unix'] += darwin_opts
+        pass
 
     def build_extensions(self):
         ct = self.compiler.compiler_type
