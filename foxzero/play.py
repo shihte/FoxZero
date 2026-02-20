@@ -335,14 +335,11 @@ def main():
     parser.add_argument("--human", action="store_true", help="手動控制玩家 1")
     parser.add_argument("--sims", type=int, default=400, help="AI 思考次數 (MCTS Simulations)")
     parser.add_argument("--cpuct", type=float, default=1.0, help="MCTS 探索常數")
-    parser.add_argument("--god_mode", action="store_true", default=True, help="開啟上帝視角 (作弊模式)")
-    parser.add_argument("--blind", action="store_true", help="關閉上帝視角 (使用決定論化)")
+    parser.add_argument("--god", action="store_true", help="開啟上帝視角 (作弊模式)")
     args = parser.parse_args()
     
     # Handle conflicts
-    god_mode = args.god_mode
-    if args.blind:
-        god_mode = False
+    god_mode = args.god
 
     model_path = "foxzero_weights.pth"
     if not os.path.exists(model_path):
@@ -412,7 +409,7 @@ def main():
         agent = agents[current]
         
         if isinstance(agent, FoxZeroAgent):
-            mode_str = "思考中 (GodMode)" if god_mode else "思考中 (Determinized)"
+            mode_str = "思考中 (GodMode)" if god_mode else "思考中 (MCTS + Logic)"
             print(f"AI (玩家 {current}) {mode_str} (Sims={args.sims})...")
             
         card = agent.select_move(game, current)

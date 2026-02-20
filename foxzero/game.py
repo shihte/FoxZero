@@ -91,7 +91,8 @@ class SevensGame:
         self.covered_cards: List[List[Card]] = [[] for _ in range(num_players)]
         # pass_record[player_idx][suit_idx]
         self.pass_record: List[List[bool]] = [[False]*4 for _ in range(num_players)]
-        
+        self.forbidden_cards: List[set] = [set() for _ in range(num_players)] # Set of Card objects (or tuples)
+
         self.dealer_number = 1
         self.current_player_number = 1
         self.first_move_performed = False
@@ -105,6 +106,7 @@ class SevensGame:
         self.covered_cards = [[] for _ in range(self.num_players)]
         self.played_cards = [PlacedSuit(s) for s in [1, 2, 3, 4]]
         self.pass_record = [[False]*4 for _ in range(self.num_players)]
+        self.forbidden_cards = [set() for _ in range(self.num_players)]
         self.first_move_performed = False
         self.turn_count = 0
         
@@ -128,60 +130,108 @@ class SevensGame:
                 return i + 1
         return 1
 
+    def get_playable_cards_on_board(self) -> List[Card]:
+        """Returns all cards that would be valid moves if held by someone."""
+        candidates = []
+        for suit in [Suit.SPADE, Suit.HEART, Suit.DIAMOND, Suit.CLUB]:
+            ps = self.played_cards[suit - 1]
+            if ps.lowest_card is None:
+                # 7 is playable
+                candidates.append(Card(suit, 7))
+            else:
+                # Low - 1
+                if ps.lowest_card.rank > 1:
+                    candidates.append(Card(suit, ps.lowest_card.rank - 1))
+                # High + 1
+                if ps.highest_card.rank < 13:
+                    candidates.append(Card(suit, ps.highest_card.rank + 1))
+        return candidates
+
     def determinize(self, observer_player: int):
         """
-        Randomizes the hands of opponents, consistent with known information.
-        observer_player: The player whose viewpoint we preserve (knows their own hand).
+        Randomizes properties of hidden hands, respecting known constraints.
+        Constraints:
+        1. Observer's hand is fixed.
+        2. Players cannot hold cards they are 'forbidden' to have (because they passed/covered previously).
         """
         import random
         
-        # 1. Collect all cards that are NOT played, NOT covered, and NOT in observer's hand.
-        #    These are the "unknown" cards distributed among opponents.
-        unknown_cards = []
-        opponent_indices = []
-        
+        # 0. Identify knowns
         observer_idx = observer_player - 1
+        opponent_indices = [i for i in range(self.num_players) if i != observer_idx]
         
-        for i in range(self.num_players):
-            if i == observer_idx:
-                continue
-                
-            opponent_indices.append(i)
-            # Collect cards from this opponent's hand
-            unknown_cards.extend(self.hands[i].cards)
-            # Clear their hand (we will redeal)
-            self.hands[i].cards = []
-            
-        # 2. Shuffle unknown cards
-        random.shuffle(unknown_cards)
-        
-        # 3. Redistribute
-        # We need to know how many cards each opponent SHOULD have.
-        # But we just cleared them. We should have tracked counts.
-        # Actually, self.hands[i].cards was the source of truth for counts.
-        # Let's verify counts before clearing.
-        
-        # Let's re-implement carefully to preserve counts.
-        
-        # Restore logic:
-        # Get counts
+        # 1. Collect all unknown cards & current counts
+        unknown_cards = []
         counts = {}
-        cards_pool = []
         
         for i in opponent_indices:
-            counts[i] = len(self.hands[i].cards) # Current count
-            cards_pool.extend(self.hands[i].cards)
-            self.hands[i].cards = [] # Clear
+            counts[i] = len(self.hands[i].cards)
+            unknown_cards.extend(self.hands[i].cards)
+            self.hands[i].cards = [] # Clear hand
             
-        random.shuffle(cards_pool)
+        # 2. Constraint Satisfaction Shuffle
+        # Tries to shuffle until valid assignment found.
+        # Fallback to random if too hard (e.g. constraints conflict due to bad tracking or deep search).
         
-        current_idx = 0
-        for i in opponent_indices:
-            num_needed = counts[i]
-            self.hands[i].cards = cards_pool[current_idx : current_idx + num_needed]
-            current_idx += num_needed
-            # Sort for consistency/display
-            self.hands[i].sort_by_suit()
+        max_attempts = 100
+        success = False
+        
+        for attempt in range(max_attempts):
+            random.shuffle(unknown_cards)
+            
+            # Check if this permutation is valid
+            current_idx = 0
+            possible = True
+            
+            temp_hands = {}
+            
+            for i in opponent_indices:
+                num = counts[i]
+                assigned = unknown_cards[current_idx : current_idx + num]
+                current_idx += num
+                
+                # Check constraints
+                # If any assigned card is in forbidden[i], fail.
+                # Note: forbidden set contains Card objects, need equality check.
+                # Card.__eq__ is based on suit/rank.
+                
+                for c in assigned:
+                    # We need to check if c matches any forbidden card
+                    # Since Card objects are recreated, we iterate or use content set?
+                    # Let's assume Card hash/eq works.
+                    # Or check logic:
+                    is_forbidden = False
+                    for fc in self.forbidden_cards[i]:
+                        if c.suit == fc.suit and c.rank == fc.rank:
+                            is_forbidden = True
+                            break
+                    
+                    if is_forbidden:
+                        possible = False
+                        break
+                
+                if not possible:
+                    break
+                    
+                temp_hands[i] = assigned
+                
+            if possible:
+                # Apply
+                for i in opponent_indices:
+                    self.hands[i].cards = temp_hands[i]
+                    self.hands[i].sort_by_suit()
+                success = True
+                break
+                
+        if not success:
+            # Fallback: Just deal randomly (ignore constraints to keep game running)
+            # print("Warning: Could not satisfy determinization constraints. Falling back to random.")
+            current_idx = 0
+            for i in opponent_indices:
+                num = counts[i]
+                self.hands[i].cards = unknown_cards[current_idx : current_idx + num]
+                current_idx += num
+                self.hands[i].sort_by_suit()
 
     def is_valid_move(self, card: Card) -> bool:
         if not self.first_move_performed:
@@ -219,18 +269,15 @@ class SevensGame:
                  raise ValueError(f"Player {self.current_player_number} must play a valid card if able, cannot cover {card}")
              
              # If we are here, it's a valid COVER action.
+             # KEY LOGIC: If they cover, they MUST NOT have any card that is currently playable.
+             # We add all currently playable cards to their forbidden set.
+             playable_now = self.get_playable_cards_on_board()
+             for c_p in playable_now:
+                 # Copy card to store in forbidden set
+                 self.forbidden_cards[player_idx].add(Card(c_p.suit, c_p.rank))
+
              # Remove card from hand
              self.hands[player_idx].remove_card(card)
-             # Record as covered (maybe in specific list for scoring?)
-             # For now, just removing it is synonymous with "Covering" regarding game flow.
-             # But we need to track penalties? 
-             # The final score uses `hands` which are remaining cards.
-             # Wait, if I remove it, then `has_player_won` becomes true quicker?
-             # NO. Covering means you put it face down. It is "played" but scores penalty.
-             # The game ends when everyone is out of cards.
-             # So removing from `hand` is correct for flow.
-             # But for SCORING, covered cards count as penalty.
-             # We need a `covered_cards` list per player.
              self.covered_cards[player_idx].append(card)
              
         else:
@@ -239,7 +286,7 @@ class SevensGame:
              suit_idx = card.suit - 1
              self.played_cards[suit_idx].place_card(card)
              self.first_move_performed = True
-
+ 
         self.turn_count += 1
 
     def record_pass(self, player_number: int):
