@@ -229,8 +229,9 @@ def train_colab():
                     writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), loss_b.item(), len(buffer), temp, lr])
                 
             # 6. Save Weights
-            if total_steps % 50 == 0:
+            if total_steps % 100 == 0:
                 torch.save(model.state_dict(), args.weights_path)
+                print(f"[SAVE] 訓練達 {total_steps} 步，權重已自動儲存至: {args.weights_path}")
                 
     except KeyboardInterrupt:
         print("Stopping training...")
