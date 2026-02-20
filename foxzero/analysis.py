@@ -139,35 +139,36 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
          
     game.hands[user_player_id - 1].cards = my_cards
     
-    # 3. Determine Current Player
-    # Total history = total_played_on_board + total_covered
-    total_covered = covered_p1 + covered_p2 + covered_p3 + covered_p4
-    
-    total_actions = total_played + total_covered
-    
-    # S7 is usually first action.
-    # If S7 on board, it counts as 1 action. (Assuming standard deal where S7 forces play)
-    # Formula for current player: (total_actions % 4) + 1
-    # If total=0 (start), P1.
-    # If total=1 (S7 played), P2.
+    # 3. Determine Game State from User Hand
+    total_ui_actions = total_played + covered_p1 + covered_p2 + covered_p3 + covered_p4
+    user_moves = 13 - len(my_cards)
     
     if total_played > 0:
         game.first_move_performed = True
         
-    game.turn_count = total_actions
     game.current_player_number = 1
+    moves_made = {1: user_moves, 2: user_moves, 3: user_moves, 4: user_moves}
     
-    # Calculate moves made by each player recursively assuming it's currently P1's turn
-    # MCTS requires valid hand counts.
-    moves_made = {1: 0, 2: 0, 3: 0, 4: 0}
-    base_moves = total_actions // 4
-    rem = total_actions % 4
-    for p in range(1, 5):
-        moves_made[p] = base_moves
-    # The 'rem' players who played before P1 (P4, P3, P2 backwards)
-    if rem >= 1: moves_made[4] += 1
-    if rem >= 2: moves_made[3] += 1
-    if rem >= 3: moves_made[2] += 1
+    # Auto-balance missing actions using P1's absolute turn truth
+    if total_ui_actions <= 4 * user_moves:
+        missing_covers = 4 * user_moves - total_ui_actions
+        # Add casually omitted covers to opponents to balance the timeline
+        for i in range(missing_covers):
+            if i % 3 == 0: covered_p2 += 1
+            elif i % 3 == 1: covered_p3 += 1
+            else: covered_p4 += 1
+        total_actions = 4 * user_moves
+    else:
+        k = total_ui_actions - 4 * user_moves
+        if k > 3:
+            return {"error": f"❌ 設定矛盾！您目前手牌剩下 {len(my_cards)} 張 (出了 {user_moves} 次)，但桌面上的牌 + 蓋牌居然有 {total_ui_actions} 張！這代表其他人出牌次數遠超過正常範圍，請檢查有無選錯桌面花色範圍或蓋牌數量。"}
+            
+        if k >= 1: moves_made[4] += 1
+        if k >= 2: moves_made[3] += 1
+        if k >= 3: moves_made[2] += 1
+        total_actions = total_ui_actions
+
+    game.turn_count = total_actions
 
     # 4. Infer Unknowns & Redistribute
     
@@ -229,21 +230,8 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
         remaining_hand = 13 - moves_made[pid]
         
         if pid == user_player_id:
-            needed = remaining_hand - len(my_cards)
-            if needed < 0:
-                 return {"error": f"❌ 錯誤：多牌預警！\n根據桌面已出牌數 ({total_played} 張) 與 蓋牌設定，您的手牌應該剩下 {remaining_hand} 張，但您卻勾選了 {len(my_cards)} 張。\n也就是說多選了 {-needed} 張，請先取消勾選一些。"}
-             
-            if needed > 0:
-                 return {"error": f"❌ 錯誤：少牌預警！\n根據桌面已出牌數 ({total_played} 張) 與 蓋牌設定，您的手牌應該剩下 {remaining_hand} 張，但您只勾選了 {len(my_cards)} 張。\n還欠 {needed} 張，請確認有沒有少選。"}
-                 
-            # If they checked fewer cards, fill the rest with random unknowns
-            start = current_idx
-            end = current_idx + needed
-            if end > len(unknowns):
-                  return {"error": f"❌ 錯誤：牌數邏輯錯誤。系統沒有足夠的未知牌發給您。"}
-            
-            game.hands[pid-1].cards = my_cards + unknowns[start:end]
-            current_idx = end
+            # We've guaranteed moves_made[1] matches len(my_cards) exactly
+            game.hands[pid-1].cards = my_cards
         else:
             # Assign random cards to opponent hand
             needed = remaining_hand
