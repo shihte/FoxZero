@@ -123,40 +123,46 @@
         .card-label-btn {
             background: white;
             border: 1px solid #e8e6dc;
-            transition: all 0.18s ease;
+            border-radius: 8px;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
             cursor: pointer;
             user-select: none;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .card-checkbox:checked+.card-label-btn {
+            font-weight: 700;
+        }
+
+        /* Suit-specific selected state colors */
+        .suit-s .card-checkbox:checked+.card-label-btn {
+            background: #141413;
+            color: white;
+            border-color: #141413;
+        }
+
+        .suit-h .card-checkbox:checked+.card-label-btn {
             background: #d97757;
             color: white;
             border-color: #d97757;
-            font-weight: 700;
-            transform: scale(1.07);
-            box-shadow: 0 4px 8px -2px rgba(217, 119, 87, 0.45);
+        }
+
+        .suit-c .card-checkbox:checked+.card-label-btn {
+            background: #788c5d;
+            color: white;
+            border-color: #788c5d;
+        }
+
+        .suit-d .card-checkbox:checked+.card-label-btn {
+            background: #6a9bcc;
+            color: white;
+            border-color: #6a9bcc;
         }
 
         .card-label-btn:hover {
             border-color: #b0aea5;
             background: #f7f5ef;
-        }
-
-        /* Suit-colored bottom bar on card */
-        .card-label-btn.suit-s {
-            border-bottom: 3px solid #141413;
-        }
-
-        .card-label-btn.suit-h {
-            border-bottom: 3px solid #d97757;
-        }
-
-        .card-label-btn.suit-c {
-            border-bottom: 3px solid #788c5d;
-        }
-
-        .card-label-btn.suit-d {
-            border-bottom: 3px solid #6a9bcc;
         }
 
         /* Suit label strip before card row */
@@ -505,18 +511,20 @@
             label.innerHTML = suitSymbolSVG[s.id] + suitNameZh[s.id];
             wrapper.appendChild(label);
 
-            // Cards grid
+            // Horizontal scroll card strip
             const row = document.createElement('div');
-            row.className = 'grid grid-cols-13 gap-1.5';
+            row.className = 'suit-' + s.id + ' flex flex-row gap-2 overflow-x-auto pb-1';
+            row.style.scrollbarWidth = 'thin';
 
             for (let r = 1; r <= 13; r++) {
                 const txt = rankLabels[r] || String(r);
                 const id = `card-${s.id}-${r}`;
                 const wrap = document.createElement('div');
+                wrap.className = 'flex-shrink-0';
                 const chk = document.createElement('input');
                 chk.type = 'checkbox'; chk.id = id; chk.className = 'card-checkbox';
                 const lbl = document.createElement('label');
-                lbl.className = `card-label-btn suit-${s.id} flex items-center justify-center py-2 rounded-lg font-mono text-sm`;
+                lbl.className = 'card-label-btn flex items-center justify-center w-10 py-2 font-mono text-sm';
                 lbl.htmlFor = id; lbl.textContent = txt;
                 wrap.appendChild(chk); wrap.appendChild(lbl); row.appendChild(wrap);
             }
