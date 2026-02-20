@@ -218,7 +218,7 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
         start = current_idx
         end = current_idx + cov_count
         if end > len(unknowns):
-             return f"錯誤：牌數不符。剩餘未知牌 {len(unknowns)} 張，但需要分配更多蓋牌。", ""
+             return {"error": f"錯誤：牌數不符。剩餘未知牌 {len(unknowns)} 張，但需要分配更多蓋牌。"}
              
         p_covered = unknowns[start:end]
         game.covered_cards[pid - 1] = p_covered
@@ -231,13 +231,16 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
         if pid == user_player_id:
             needed = remaining_hand - len(my_cards)
             if needed < 0:
-                 return f"❌ 錯誤：手牌選太多了！\n根據桌面已出牌數 ({total_played} 張)，您的手牌應該剩下 {remaining_hand} 張，但您勾選了 {len(my_cards)} 張。\n請取消勾選一些牌。", ""
+                 return {"error": f"❌ 錯誤：多牌預警！\n根據桌面已出牌數 ({total_played} 張) 與 蓋牌設定，您的手牌應該剩下 {remaining_hand} 張，但您卻勾選了 {len(my_cards)} 張。\n也就是說多選了 {-needed} 張，請先取消勾選一些。"}
+             
+            if needed > 0:
+                 return {"error": f"❌ 錯誤：少牌預警！\n根據桌面已出牌數 ({total_played} 張) 與 蓋牌設定，您的手牌應該剩下 {remaining_hand} 張，但您只勾選了 {len(my_cards)} 張。\n還欠 {needed} 張，請確認有沒有少選。"}
                  
             # If they checked fewer cards, fill the rest with random unknowns
             start = current_idx
             end = current_idx + needed
             if end > len(unknowns):
-                  return f"❌ 錯誤：牌數邏輯錯誤。系統沒有足夠的未知牌發給您。", ""
+                  return {"error": f"❌ 錯誤：牌數邏輯錯誤。系統沒有足夠的未知牌發給您。"}
             
             game.hands[pid-1].cards = my_cards + unknowns[start:end]
             current_idx = end
@@ -247,7 +250,7 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
             start = current_idx
             end = current_idx + needed
             if end > len(unknowns):
-                  return f"❌ 錯誤：牌數邏輯錯誤。剩餘未知牌不足以分配給對手，請檢查桌面狀態和蓋牌設定。", ""
+                  return {"error": f"❌ 錯誤：牌數邏輯錯誤。剩餘未知牌不足以分配給對手，這通常代表「桌面出牌」與「您的手牌數」有矛盾。請檢查！"}
             
             p_hand = unknowns[start:end]
             game.hands[pid-1].cards = p_hand
@@ -287,15 +290,20 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     except Exception as e:
         sys.stdout = old_stdout
         import traceback
-        return f"錯誤：{e}\n{traceback.format_exc()}\n{info}", ""
+        return {"error": f"推演發生錯誤：{e}\n{traceback.format_exc()}\n{info}"}
         
     sys.stdout = old_stdout
     log_output = mystdout.getvalue()
     
-    if game.is_valid_move(best_card):
-        action_text = f"✅ 建議出牌: {best_card}"
-    else:
-        action_text = f"⚠️ 建議蓋牌 (被迫): {best_card}"
-        
-    result_str = f"{action_text}\n\n{info}\n\n--- 思考日誌 ---\n{log_output}"
-    return result_str
+    is_play = game.is_valid_move(best_card)
+    
+    suit_map = {1: 'd', 2: 'c', 3: 'h', 4: 's'}
+    
+    return {
+        "action": str(best_card),
+        "suit": suit_map[best_card.suit],
+        "rank": best_card.rank,
+        "is_play": is_play,
+        "info": info,
+        "log": log_output
+    }
