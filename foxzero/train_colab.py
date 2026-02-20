@@ -16,26 +16,42 @@ from foxzero.common import FoxZeroResNet, run_simulation_fast
 from foxzero.game import SevensGame
 
 # Configuration for Colab T4
-# T4 has good FP32 performance, but Mixed Precision (AMP) is faster.
-# CPU count is usually 2.
 NUM_WORKERS = 2 
 BATCH_SIZE = 512
-# MCTS_SIMS not needed for fast mode
 
 import argparse
 import csv
 
-# ... (Previous imports match, ensure mp, torch etc are there)
-
-# Configuration
-NUM_WORKERS = 2 
-BATCH_SIZE = 512
-
-def colab_worker(queue, device, worker_id, weights_path, temperature=1.0, dirichlet=None, top_k=None):
+def get_curriculum_params(step):
     """
-    Worker process to generate self-play data.
+    Returns (temperature, dirichlet_alpha, lr, freeze_backbone)
+    based on the 300k-step 4-phase schedule.
     """
-    print(f"Worker {worker_id} started on {device} (Temp={temperature}, Dirichlet={dirichlet}, Top-K={top_k})")
+    if step < 150000:
+        # Phase 1: Base Internalization
+        return 1.0, None, 1e-4, False
+    elif step < 210000:
+        # Phase 2: Exploration
+        progress = (step - 150000) / 60000.0
+        temp = 1.5 - (0.3 * progress) # Anneal from 1.5 to 1.2
+        return temp, 0.3, 1e-4, False
+    elif step < 260000:
+        # Phase 3: Exploitation
+        progress = (step - 210000) / 50000.0
+        temp = 0.8 - (0.3 * progress) # Anneal from 0.8 to 0.5
+        return temp, None, 1e-5, False
+    else:
+        # Phase 4: Belief Head Tuning
+        progress = (step - 260000) / 40000.0
+        progress = min(1.0, progress)
+        temp = 0.5 - (0.4 * progress) # Anneal to 0.1
+        return temp, None, 1e-5, True
+
+def colab_worker(queue, device, worker_id, weights_path, shared_step, top_k=None):
+    """
+    Worker process to generate self-play data using dynamic curriculum.
+    """
+    print(f"Worker {worker_id} started on {device}.")
     model = FoxZeroResNet().to(device)
     model.eval()
     
@@ -47,7 +63,6 @@ def colab_worker(queue, device, worker_id, weights_path, temperature=1.0, dirich
             try:
                 mod_time = os.path.getmtime(weights_path)
                 if mod_time > last_mod_time:
-                    # Load weights ensuring map_location is CPU
                     state_dict = torch.load(weights_path, map_location=device, weights_only=True)
                     model.load_state_dict(state_dict)
                     last_mod_time = mod_time
@@ -55,9 +70,13 @@ def colab_worker(queue, device, worker_id, weights_path, temperature=1.0, dirich
                 print(f"Worker {worker_id} failed to load weights: {e}")
                 time.sleep(1)
         
-        # 2. Run Simulation
+        # 2. Get current curriculum parameters
+        current_step = shared_step.value
+        temp, dirichlet, _, _ = get_curriculum_params(current_step)
+        
+        # 3. Run Simulation
         try:
-            samples = run_simulation_fast(SevensGame, model, temperature=temperature, dirichlet_alpha=dirichlet, top_k=top_k)
+            samples = run_simulation_fast(SevensGame, model, temperature=temp, dirichlet_alpha=dirichlet, top_k=top_k)
             if len(samples) > 0:
                 queue.put(samples)
         except Exception as e:
@@ -68,8 +87,6 @@ def train_colab():
     parser = argparse.ArgumentParser()
     parser.add_argument("--weights_path", type=str, default="models/foxzero_weights.pth")
     parser.add_argument("--log_path", type=str, default="logs/train_log.csv")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature")
-    parser.add_argument("--dirichlet", type=float, default=0.3, help="Dirichlet noise alpha (0 to disable)")
     parser.add_argument("--top_k", type=int, default=0, help="Top-K sampling (0 to disable)")
     args = parser.parse_args()
     
@@ -79,13 +96,12 @@ def train_colab():
     print(f"Training on {device}")
     print(f"Weights Path: {args.weights_path}")
     print(f"Log Path: {args.log_path}")
-    print(f"Exploration: Temp={args.temperature}, Dirichlet={args.dirichlet}, Top-K={args.top_k}")
+    print("Using 300k-step 4-Phase Curriculum Manager")
     
     # Main Model
     model = FoxZeroResNet().to(device)
     model.train()
     
-    # Load existing if available
     if os.path.exists(args.weights_path):
         print("Loading existing weights...")
         try:
@@ -93,47 +109,30 @@ def train_colab():
         except:
             print("Failed to load weights, starting fresh.")
     else:
-        # Initial save
         torch.save(model.state_dict(), args.weights_path)
         
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    # Use new AMP API if available, else fallback
+    # Setup Parameter Groups for freezing in Phase 4
+    backbone_params = []
+    belief_params = []
+    for name, p in model.named_parameters():
+        if 'belief' in name:
+            belief_params.append(p)
+        else:
+            backbone_params.append(p)
+            
+    optimizer = torch.optim.Adam([
+        {'params': backbone_params},
+        {'params': belief_params}
+    ], lr=1e-4, weight_decay=1e-4)
+    
     try:
         scaler = torch.amp.GradScaler('cuda')
     except:
         scaler = torch.cuda.amp.GradScaler()
     
-    # Queue for data
     queue = mp.Queue(maxsize=100)
     
-    # Start Workers
-    processes = []
-    
-    # Handle Dirichlet Disable (0)
-    d_alpha = args.dirichlet
-    if d_alpha == 0: d_alpha = None
-    
-    k = args.top_k
-    if k <= 0: k = None
-    
-    for i in range(NUM_WORKERS):
-        p = mp.Process(target=colab_worker, args=(queue, 'cpu', i, args.weights_path, args.temperature, d_alpha, k))
-        p.start()
-        processes.append(p)
-        
-    print(f"Started {NUM_WORKERS} generator processes.")
-    
-    # Init CSV
-    if not os.path.exists(args.log_path):
-        with open(args.log_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['step', 'loss', 'loss_p', 'loss_v', 'buffer_size'])
-            
-    buffer = []
     total_steps = 0
-    games_collected = 0
-    
-    # Resume step count from log if exists
     if os.path.exists(args.log_path):
         try:
             with open(args.log_path, 'r') as f:
@@ -145,11 +144,31 @@ def train_colab():
                         print(f"Resuming training from step {total_steps}")
         except Exception as e:
             print(f"Error reading log file: {e}")
+            
+    # Shared step counter for workers
+    shared_step = mp.Value('i', total_steps)
+    
+    k = args.top_k if args.top_k > 0 else None
+    
+    processes = []
+    for i in range(NUM_WORKERS):
+        p = mp.Process(target=colab_worker, args=(queue, 'cpu', i, args.weights_path, shared_step, k))
+        p.start()
+        processes.append(p)
+        
+    print(f"Started {NUM_WORKERS} generator processes.")
+    
+    if not os.path.exists(args.log_path):
+        with open(args.log_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['step', 'loss', 'loss_p', 'loss_v', 'loss_b', 'buffer_size', 'temp', 'lr'])
+            
+    buffer = []
+    games_collected = 0
     
     try:
         while True:
             # 1. Collect Data
-            # We strictly need at least BATCH_SIZE samples to train
             while len(buffer) < BATCH_SIZE:
                 if not queue.empty():
                     game_samples = queue.get()
@@ -158,10 +177,8 @@ def train_colab():
                     if games_collected % 10 == 0:
                         print(f"Collected {games_collected} games. Buffer size: {len(buffer)}")
                 else:
-                    # Queue empty, wait for workers
                     time.sleep(1)
             
-            # Opportunistically collect more if available (up to 4x batch)
             while not queue.empty() and len(buffer) < BATCH_SIZE * 4:
                 game_samples = queue.get()
                 buffer.extend(game_samples)
@@ -172,21 +189,31 @@ def train_colab():
             batch = [buffer[i] for i in indices]
             
             if len(buffer) > 20000:
-                buffer = buffer[-5000:] # Trim aggressively to keep fresh data
+                buffer = buffer[-5000:] 
                 
-            states, policies, values = zip(*batch)
+            states, policies, b_targets, values = zip(*batch)
             
             states_t = torch.stack([torch.from_numpy(s) for s in states]).to(device)
             policies_t = torch.stack([torch.tensor(p) for p in policies]).to(device)
+            b_targets_t = torch.stack([torch.tensor(b) for b in b_targets]).to(device)
             values_t = torch.tensor(values, dtype=torch.float32).unsqueeze(1).to(device)
             
-            # 3. Optimization
+            # 3. Update Curriculum Parameters
+            shared_step.value = total_steps
+            temp, dirichlet, lr, freeze_backbone = get_curriculum_params(total_steps)
+            
+            optimizer.param_groups[0]['lr'] = 1e-6 if freeze_backbone else lr # Backbone
+            optimizer.param_groups[1]['lr'] = lr # Belief Head
+            
+            # 4. Optimization
             optimizer.zero_grad()
             with torch.cuda.amp.autocast():
-                p_logits, v_pred = model(states_t)
+                p_logits, v_pred, b_pred = model(states_t)
                 loss_p = torch.nn.functional.cross_entropy(p_logits, policies_t)
                 loss_v = torch.nn.functional.mse_loss(v_pred, values_t)
-                loss = loss_p + loss_v
+                loss_b = torch.nn.functional.binary_cross_entropy(b_pred, b_targets_t)
+                
+                loss = loss_p + loss_v + (0.5 * loss_b)
                 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -194,17 +221,16 @@ def train_colab():
             
             total_steps += 1
             
-            # Logging
+            # 5. Logging
             if total_steps % 10 == 0:
-                print(f"Step {total_steps} | Loss: {loss.item():.4f} | Buffer: {len(buffer)}")
+                print(f"Step {total_steps} | L: {loss.item():.3f} (P:{loss_p.item():.3f} V:{loss_v.item():.3f} B:{loss_b.item():.3f}) | Buffer: {len(buffer)} | T: {temp:.2f}")
                 with open(args.log_path, 'a', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), len(buffer)])
+                    writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), loss_b.item(), len(buffer), temp, lr])
                 
-            # Save Weights
+            # 6. Save Weights
             if total_steps % 50 == 0:
                 torch.save(model.state_dict(), args.weights_path)
-                print(f"Saved weights to {args.weights_path}")
                 
     except KeyboardInterrupt:
         print("Stopping training...")

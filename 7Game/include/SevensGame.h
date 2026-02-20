@@ -45,6 +45,7 @@ public:
   int getDealerNumber() const;
   const std::vector<std::unique_ptr<PlacedSuit>> &getPlayedCards() const;
   const std::vector<std::vector<bool>> &getPassRecord() const;
+  const std::vector<std::vector<Card>> &getCoveredCards() const;
 
   // Internal helper for covering - NOW PUBLIC for Python Binding
   void coverCard(const Card &card);

@@ -49,6 +49,11 @@ class FoxZeroResNet(nn.Module):
         self.value_fc1 = nn.Linear(1 * 4 * 13, 256)
         self.value_fc2 = nn.Linear(256, 1)
 
+        # Belief Head (Predicts 3 opponents * 4 suits * 13 ranks)
+        self.belief_conv = nn.Conv2d(num_channels, 2, kernel_size=1, bias=False)
+        self.belief_bn = nn.BatchNorm2d(2)
+        self.belief_fc = nn.Linear(2 * 4 * 13, 3 * 4 * 13)
+
     def forward(self, x):
         # x shape: [Batch, 11, 4, 13]
         x = F.relu(self.bn_input(self.conv_input(x)))
@@ -68,7 +73,14 @@ class FoxZeroResNet(nn.Module):
         v = F.relu(self.value_fc1(v))
         v = torch.tanh(self.value_fc2(v))
         
-        return p, v
+        # Belief Head
+        b = F.relu(self.belief_bn(self.belief_conv(x)))
+        b = b.view(b.size(0), -1)
+        b = self.belief_fc(b)
+        b = torch.sigmoid(b)
+        b = b.view(-1, 3, 4, 13)
+        
+        return p, v, b
 
     def predict(self, state_tensor):
         """
@@ -79,8 +91,8 @@ class FoxZeroResNet(nn.Module):
         self.eval()
         with torch.no_grad():
             x = torch.FloatTensor(state_tensor).unsqueeze(0) # Add batch dim
-            p, v = self(x)
-            return p.squeeze(0).numpy(), v.item()
+            p, v, b = self(x)
+            return p.squeeze(0).numpy(), v.item(), b.squeeze(0).numpy()
 
 # -------------------------
 # Simulation Logic
@@ -102,7 +114,7 @@ def run_mcts_game_simulation(game_cls, model, sims):
     game = game_cls()
     mcts = MCTS(model, simulations=sims)
     
-    game_samples = [] # (state, pi, player_idx)
+    game_samples = [] # (state, pi, player_idx, belief_target)
     step_count = 0
     
     while not game.is_game_over():
@@ -111,8 +123,9 @@ def run_mcts_game_simulation(game_cls, model, sims):
         # MCTS Search
         pi = mcts.search(game)
         state_tensor = game.get_state_tensor(current_player)
+        belief_target = np.array(game.get_belief_target(current_player), dtype=np.float32).reshape(3, 4, 13)
         
-        game_samples.append((state_tensor, pi, current_player))
+        game_samples.append((state_tensor, pi, current_player, belief_target))
         
         # Select Action
         valid_moves = game.get_all_valid_moves(current_player)
@@ -150,9 +163,9 @@ def run_mcts_game_simulation(game_cls, model, sims):
         
         # Build samples
         final_samples = []
-        for s, pi, p_idx in game_samples:
+        for s, pi, p_idx, b_targ in game_samples:
             z = final_rewards[p_idx - 1]
-            final_samples.append((s, pi, z))
+            final_samples.append((s, pi, b_targ, z))
         return final_samples
     else:
         return []
@@ -176,7 +189,7 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
         
     model.eval()
     device = next(model.parameters()).device
-    traj = [] # (state_tensor, policy_probs, player_id)
+    traj = [] # (state_tensor, policy_probs, player_id, belief_target)
     
     if cpp_engine:
         # --- C++ PATH ---
@@ -195,7 +208,7 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
             
             # 2. Model
             with torch.no_grad():
-                p_logits, _ = model(inp)
+                p_logits, _, _ = model(inp)
                 
             # TEMPERATURE CONTROL
             # Decrease temp in endgame to reduce randomness
@@ -258,7 +271,8 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
             # 4. Sample
             action_idx = np.random.choice(52, p=p_probs)
             
-            traj.append((state_tensor, p_probs, p_idx))
+            b_target = np.array(game.get_belief_target(p_idx), dtype=np.float32).reshape(3, 4, 13)
+            traj.append((state_tensor, p_probs, p_idx, b_target))
             
             # 5. Step
             game.step(action_idx)
@@ -341,9 +355,9 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
         normalized_rewards = [r / SCALE for r in final_rewards]
         
         samples = []
-        for s, pi, pid in traj:
+        for s, pi, pid, b_targ in traj:
             z = normalized_rewards[pid - 1]
-            samples.append((s, pi, z))
+            samples.append((s, pi, b_targ, z))
             
         return samples
 
@@ -402,7 +416,8 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
             
             # Record trajectory (Policy Target = Model Probabiltiy)
             # This reinforces the model's own preference but filtered by legality and outcome
-            traj.append((state_tensor, p_probs, current_player))
+            b_target = np.array(game.get_belief_target(current_player), dtype=np.float32).reshape(3, 4, 13)
+            traj.append((state_tensor, p_probs, current_player, b_target))
             
             # Move
             game.make_move(card)
@@ -411,8 +426,8 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
         # Rewards
         final_rewards = game.calculate_final_rewards()
         samples = []
-        for s, pi, p_idx in traj:
+        for s, pi, p_idx, b_targ in traj:
             z = final_rewards[p_idx - 1]
-            samples.append((s, pi, z))
+            samples.append((s, pi, b_targ, z))
             
         return samples

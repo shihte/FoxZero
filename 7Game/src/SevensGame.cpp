@@ -261,6 +261,10 @@ const std::vector<std::vector<bool>> &SevensGame::getPassRecord() const {
   return passRecord;
 }
 
+const std::vector<std::vector<Card>> &SevensGame::getCoveredCards() const {
+  return coveredCards;
+}
+
 // Custom copy constructor for deep cloning
 SevensGame::SevensGame(const SevensGame &other)
     : numberOfPlayers(other.numberOfPlayers),

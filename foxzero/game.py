@@ -503,4 +503,26 @@ class SevensGame:
         state[10, :, :] = self.turn_count / 52.0
         
         return state
+        
+    def get_belief_target(self, observer_player: int) -> list:
+        """
+        Returns a flat list representing a 3x4x13 tensor of opponent hands and covered cards.
+        """
+        import numpy as np
+        target = np.zeros((3, 4, 13), dtype=np.float32)
+        obs_idx = observer_player - 1
+        opp_indices = [i for i in range(4) if i != obs_idx]
+        
+        for opp, p_idx in enumerate(opp_indices):
+            # Hand
+            for c in self.hands[p_idx].cards:
+                s_idx, r_idx = c.to_tensor_index()
+                target[opp, s_idx, r_idx] = 1.0
+                
+            # Covered
+            for c in self.covered_cards[p_idx]:
+                s_idx, r_idx = c.to_tensor_index()
+                target[opp, s_idx, r_idx] = 1.0
+                
+        return target.flatten().tolist()
 

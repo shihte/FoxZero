@@ -505,6 +505,42 @@ PYBIND11_MODULE(sevens_core, m) {
                          obs.size() * sizeof(float));
              return result;
            })
+      .def("get_belief_target",
+           [](const SevensGame &g, int observer_player) {
+             std::vector<float> target(3 * 4 * 13, 0.0f);
+             int obs_idx = observer_player - 1;
+
+             std::vector<int> opp_indices;
+             for (int i = 0; i < 4; ++i) {
+               if (i != obs_idx)
+                 opp_indices.push_back(i);
+             }
+
+             for (int opp = 0; opp < 3; ++opp) {
+               int p_idx = opp_indices[opp];
+
+               // Hand
+               const auto &hand = g.getHands()[p_idx].getHand();
+               for (const auto &c : hand) {
+                 int s = c.getSuit() - 1;
+                 int r = c.getRank() - 1;
+                 target[opp * 52 + s * 13 + r] = 1.0f;
+               }
+
+               // Covered Cards
+               const auto &covered = g.getCoveredCards()[p_idx];
+               for (const auto &c : covered) {
+                 int s = c.getSuit() - 1;
+                 int r = c.getRank() - 1;
+                 target[opp * 52 + s * 13 + r] = 1.0f;
+               }
+             }
+
+             py::array_t<float> result({3 * 4 * 13});
+             std::memcpy(result.mutable_data(), target.data(),
+                         target.size() * sizeof(float));
+             return result;
+           })
       .def("step", [](SevensGame &g, int action_idx) {
         int s = action_idx / 13;
         int r = action_idx % 13;

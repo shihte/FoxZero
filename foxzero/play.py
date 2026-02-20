@@ -32,7 +32,7 @@ def make_predict_batch_fn(model):
     def predict_batch_fn(obs_batch):
         inp = torch.from_numpy(obs_batch).to(next(model.parameters()).device)
         with torch.no_grad():
-            l, v = model(inp)
+            l, v, b = model(inp)
             val = v.cpu().numpy().flatten()
             p_dist = torch.softmax(l, dim=1).cpu().numpy()
         return (p_dist, val)
