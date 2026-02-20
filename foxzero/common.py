@@ -157,7 +157,7 @@ def run_mcts_game_simulation(game_cls, model, sims):
     else:
         return []
 
-def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None):
+def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, top_k=None):
     """
     Runs a simulation using direct Model Policy Sampling (No MCTS search).
     Optimized for Colab CPU workers where MCTS is too slow.
@@ -231,6 +231,29 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None):
                     p_probs /= p_probs.sum()
                 else:
                      p_probs = legal_mask / legal_mask.sum()
+
+            # TOP-K FILTERING (Prune low-prob moves)
+            if top_k is not None and top_k > 0:
+                # Get indices of NOT top-k elements
+                if top_k < len(p_probs):
+                    # Sort indices by value descending
+                    sorted_indices = np.argsort(p_probs)[::-1]
+                    # Keep valid ones only? p_probs matches 52 cards.
+                    # Just zero out everything after k-th element
+                    # But wait, legal_mask might make some 0 already.
+                    # We only care about active probabilities.
+                    
+                    # Simply zero out indices not in top_k
+                    mask_indices = sorted_indices[top_k:]
+                    p_probs[mask_indices] = 0.0
+                    
+                    # Re-normalize
+                    if p_probs.sum() > 0:
+                        p_probs /= p_probs.sum()
+                    else:
+                        # If top_k removed everything (unlikely if k>=1 and sum>0 initially)
+                        # Maybe all probs were 0?
+                         p_probs = legal_mask / legal_mask.sum()
 
             # 4. Sample
             action_idx = np.random.choice(52, p=p_probs)

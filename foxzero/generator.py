@@ -69,9 +69,11 @@ def actor_worker(rank, args):
         # Extract exploration params
         temp = args.temperature
         alpha = args.dirichlet
+        k = args.top_k
         if alpha == 0: alpha = None
+        if k <= 0: k = None
         
-        samples = run_simulation_fast(SevensGame, model, temperature=temp, dirichlet_alpha=alpha)
+        samples = run_simulation_fast(SevensGame, model, temperature=temp, dirichlet_alpha=alpha, top_k=k)
         
         if len(samples) > 0:
             # 3. Save Data
@@ -98,6 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--sims", type=int, default=200) # Not used in fast mode but kept for compat
     parser.add_argument("--temperature", type=float, default=1.0, help="Exploration temperature")
     parser.add_argument("--dirichlet", type=float, default=0.3, help="Dirichlet noise alpha (0 to disable)")
+    parser.add_argument("--top_k", type=int, default=0, help="Top-K sampling (0 to disable)")
     args = parser.parse_args()
     
     # Ensure data pool exists
@@ -105,7 +108,7 @@ if __name__ == "__main__":
     os.makedirs(DATA_POOL_DIR, exist_ok=True)
     
     print(f"Starting {args.actors} Actors...")
-    print(f"Exploration: Temp={args.temperature}, Dirichlet={args.dirichlet}")
+    print(f"Exploration: Temp={args.temperature}, Dirichlet={args.dirichlet}, Top-K={args.top_k}")
     print(f"Data Pool: {os.path.abspath(DATA_POOL_DIR)}")
     
     processes = []
