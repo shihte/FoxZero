@@ -402,9 +402,9 @@ def main():
     # Handle conflicts
     god_mode = args.god
 
-    model_path = "foxzero_weights.pth"
+    model_path = "models/foxzero_weights.pth"
     if not os.path.exists(model_path):
-        model_path = "foxzero_model.pth"
+        model_path = "models/foxzero_model.pth"
     
     # Agents setup
     if args.human:

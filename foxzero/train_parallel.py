@@ -223,7 +223,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--max_updates", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--log_file", type=str, default="train_log.csv", help="Path to CSV log file")
+    parser.add_argument("--log_file", type=str, default="logs/train_log.csv", help="Path to CSV log file")
     args = parser.parse_args()
     
     # Initialize Log File

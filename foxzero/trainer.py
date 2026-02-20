@@ -10,7 +10,7 @@ from collections import deque
 from foxzero.common import FoxZeroResNet
 
 # Constants
-WEIGHTS_PATH = "foxzero_weights.pth"
+WEIGHTS_PATH = "models/foxzero_weights.pth"
 DATA_POOL_DIR = "data_pool"
 
 def train(args):

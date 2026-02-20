@@ -369,7 +369,7 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     # Run
     # Setup model
     model = FoxZeroResNet()
-    model_path = "foxzero_weights.pth"
+    model_path = "models/foxzero_weights.pth"
     if os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model.eval()

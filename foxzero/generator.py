@@ -10,7 +10,7 @@ from foxzero.common import FoxZeroResNet, run_mcts_game_simulation, run_simulati
 from foxzero.game import SevensGame
 
 # Constants
-WEIGHTS_PATH = "foxzero_weights.pth"
+WEIGHTS_PATH = "models/foxzero_weights.pth"
 DATA_POOL_DIR = "data_pool"
 
 def actor_worker(rank, args):

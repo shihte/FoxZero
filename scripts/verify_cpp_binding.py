@@ -2,7 +2,7 @@ import sys
 import os
 
 # Add current directory to path so we can import sevens_core (it's an .so file here)
-sys.path.append(os.getcwd())
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     import sevens_core

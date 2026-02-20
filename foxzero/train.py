@@ -174,8 +174,8 @@ def train(epochs=1, batch_size=32, num_games_per_epoch=1, simulations=50):
         print(f"Epoch {epoch+1} Loss: {total_loss/batches:.4f} (P: {total_p_loss/batches:.4f}, V: {total_v_loss/batches:.4f})")
         
     print("Training complete.")
-    torch.save(net.state_dict(), "foxzero_model.pth")
-    print("Model saved to foxzero_model.pth")
+    torch.save(net.state_dict(), "models/foxzero_model.pth")
+    print("Model saved to models/foxzero_model.pth")
 
 if __name__ == "__main__":
     import argparse

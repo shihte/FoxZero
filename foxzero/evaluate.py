@@ -54,7 +54,7 @@ def evaluate(num_games=20):
     print(f"Evaluating FoxZero vs 3 Random Agents for {num_games} games...")
     
     # Load Model
-    fox_agent = FoxZeroAgent("foxzero_model.pth", simulations=100)
+    fox_agent = FoxZeroAgent("models/foxzero_model.pth", simulations=100)
     random_agent = RandomAgent()
     
     # FoxZero plays as Player 1
