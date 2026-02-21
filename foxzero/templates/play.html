@@ -51,6 +51,7 @@
             font-weight: 700;
             background: linear-gradient(to right, #34d399, #10b981);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -410,7 +411,23 @@
     <!-- Header -->
     <header>
         <h1>FoxZero: 排七</h1>
-        <div>
+        <div style="display:flex; align-items:center; gap: 1rem;">
+            <!-- AI Config -->
+            <div
+                style="display:flex; align-items:center; gap: 0.5rem; background: var(--glass-bg); padding: 0.5rem; border-radius: 6px; border: 1px solid var(--glass-border);">
+                <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
+                    <input type="checkbox" id="ai-mode-toggle" />
+                    全 AI 掛機模式
+                </label>
+                <div style="width: 1px; height: 1.5rem; background: var(--glass-border); margin: 0 0.25rem;"></div>
+                <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem;" title="MCTS 模擬次數">
+                    思考深度:
+                    <input type="range" id="sim-slider" min="50" max="2500" step="50" value="400"
+                        oninput="document.getElementById('sim-val').innerText=this.value" style="width: 80px;" />
+                    <span id="sim-val" class="text-accent"
+                        style="min-width: 30px; font-weight: bold; color: var(--accent);">400</span>
+                </label>
+            </div>
             <button id="btn-start" class="btn" onclick="startGame()">開始新遊戲</button>
         </div>
     </header>
@@ -506,13 +523,20 @@
         }
 
         async function startGame() {
+            const aiOnly = document.getElementById('ai-mode-toggle').checked;
+            const sims = parseInt(document.getElementById('sim-slider').value);
+
             showLoading("正在初始化遊戲...");
             try {
-                const res = await fetch('/api/game/start', { method: 'POST' });
+                const res = await fetch('/api/game/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ai_only: aiOnly, simulations: sims })
+                });
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('log-container').innerHTML = '';
-                    logMsg("遊戲已開始！", "success");
+                    logMsg(`遊戲已開始！ (深度: ${sims}${aiOnly ? ' | 全AI模式' : ''})`, "success");
                     await fetchState();
                 }
             } catch (e) {
@@ -532,9 +556,11 @@
                 currentState = data;
                 renderState(data);
 
-                if (!data.is_game_over && data.current_player !== 1) {
-                    // Let AI move
-                    setTimeout(triggerAIMove, 1000);
+                if (!data.is_game_over) {
+                    if (data.current_player !== 1 || data.ai_only_mode) {
+                        // Let AI move
+                        setTimeout(triggerAIMove, 1000);
+                    }
                 }
             } catch (e) {
                 console.error(e);
@@ -685,6 +711,14 @@
             // Update Hand
             const handContainer = document.getElementById('player-hand');
             handContainer.innerHTML = '';
+
+            if (data.ai_only_mode) {
+                handContainer.style.pointerEvents = 'none';
+                handContainer.style.opacity = '0.7';
+            } else {
+                handContainer.style.pointerEvents = 'auto';
+                handContainer.style.opacity = '1';
+            }
 
             // Check if human must pass
             let humanHasPlayable = false;

@@ -14,14 +14,15 @@ app = Flask(__name__, template_folder='templates')
 # --- Web Game Global State ---
 game_session = None
 global_ai_agent = None
+ai_only_mode = False
 
-def get_ai_agent():
+def get_ai_agent(simulations=400, force_reload=False):
     global global_ai_agent
-    if global_ai_agent is None:
+    if global_ai_agent is None or force_reload:
         model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "foxzero_weights.pth")
         if not os.path.exists(model_path):
             model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "foxzero_model.pth")
-        global_ai_agent = FoxZeroAgent(model_path=model_path, simulations=400, c_puct=1.0)
+        global_ai_agent = FoxZeroAgent(model_path=model_path, simulations=simulations, c_puct=1.0)
     return global_ai_agent
 
 @app.route('/')
@@ -35,10 +36,16 @@ def play():
 # --- API Endpoints ---
 @app.route('/api/game/start', methods=['POST'])
 def api_start_game():
-    global game_session
+    global game_session, ai_only_mode
+    data = request.json or {}
+    ai_only = data.get("ai_only", False)
+    simulations = data.get("simulations", 400)
+    
+    ai_only_mode = ai_only
     game_session = SevensGame()
+    
     # Preload the AI model async or just trigger it
-    get_ai_agent()
+    get_ai_agent(simulations=simulations, force_reload=True)
     return jsonify({"success": True, "message": "Game started"})
 
 @app.route('/api/game/state', methods=['GET'])
@@ -85,7 +92,8 @@ def api_game_state():
         "p1_covered": sum(p1_covered),
         "board": board,
         "valid_moves": valid_moves,
-        "opponents": opponents
+        "opponents": opponents,
+        "ai_only_mode": ai_only_mode
     }
     
     # If game over, calculate final rewards
@@ -119,12 +127,12 @@ def api_make_move():
 
 @app.route('/api/game/ai_move', methods=['POST'])
 def api_ai_move():
-    global game_session
+    global game_session, ai_only_mode
     if not game_session:
         return jsonify({"error": "No active game."})
         
     curr = game_session.current_player_number
-    if curr == 1:
+    if curr == 1 and not ai_only_mode:
         return jsonify({"error": "It is human's turn!"})
         
     agent = get_ai_agent()
