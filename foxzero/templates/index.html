@@ -534,6 +534,20 @@
                 </div>
             </div>
 
+            <!-- Belief Network Predictions -->
+            <div id="belief-section"
+                class="hidden mb-6 flex flex-col gap-4 bg-black/30 p-5 rounded-xl border border-gray-700">
+                <h4
+                    class="text-lg font-bold text-white heading-font border-b border-gray-600 pb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-anthropic-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    AI 推測別人的隱藏手牌 (Belief Head)
+                </h4>
+                <div id="belief-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </div>
+
             <pre id="result-output"
                 class="font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto p-4 bg-black/40 rounded-xl border border-gray-700/50">等待推演完成...</pre>
         </div>
@@ -772,6 +786,56 @@
                     rankText.style.color = suitColor;
 
                     resOut.classList.add('hidden'); // Hide raw logs
+
+                    // Render Belief Predictions
+                    if (out.belief) {
+                        const beliefDiv = document.getElementById('belief-section');
+                        const cardsDiv = document.getElementById('belief-cards');
+                        beliefDiv.classList.remove('hidden');
+                        cardsDiv.innerHTML = '';
+
+                        // out.belief is [n_opps][suit][rank] -> [3][4][13] mapped against P2, P3, P4
+                        for (let p_idx = 0; p_idx < 3; p_idx++) {
+                            const pName = `Player ${p_idx + 2}`;
+                            let cardsHtml = '';
+                            const preds = [];
+
+                            for (let s = 0; s < 4; s++) { // 0=D, 1=C, 2=H, 3=S
+                                const suitOrd = [1, 2, 3, 4][s];
+                                for (let r = 0; r < 13; r++) {
+                                    const prob = out.belief[p_idx][s][r];
+                                    if (prob > 0.05) { // Threshold
+                                        preds.push({ prob: prob, suit: suitOrd, rank: r + 1 });
+                                    }
+                                }
+                            }
+
+                            // Sort descending
+                            preds.sort((a, b) => b.prob - a.prob);
+
+                            // Output top 8 probable cards
+                            for (let i = 0; i < Math.min(8, preds.length); i++) {
+                                const c = preds[i];
+                                const suitNames = ['Diamond', 'Club', 'Heart', 'Spade'];
+                                const sObj = suits.find(x => x.name === suitNames[c.suit - 1]);
+                                const sym = suitSymbolSVG[sObj.id] || '';
+                                const sCol = sObj.color;
+                                const rText = rankLabels[c.rank] || c.rank;
+                                const pct = (c.prob * 100).toFixed(1);
+
+                                cardsHtml += `<div class="text-sm font-mono flex items-center justify-between px-2 py-1 hover:bg-white/5 rounded"><span style="color:${sCol};font-weight:bold">${sym}${rText}</span> <span class="text-gray-400">${pct}%</span></div>`;
+                            }
+
+                            if (preds.length === 0) cardsHtml = '<div class="text-sm text-gray-500 italic p-2">無高機率推斷</div>';
+
+                            cardsDiv.innerHTML += `
+                                <div class="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-inner">
+                                    <div class="font-bold text-gray-200 mb-2 border-b border-gray-700 pb-1">${pName}</div>
+                                    <div class="flex flex-col gap-0.5">${cardsHtml}</div>
+                                </div>
+                            `;
+                        }
+                    }
 
                     // Auto-apply suggestion immediately
                     applySuggestion(out.suit, out.rank, out.is_play);

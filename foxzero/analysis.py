@@ -290,6 +290,12 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
     
     suit_map = {1: 'd', 2: 'c', 3: 'h', 4: 's'}
     
+    # Calculate Opponent Hand Distribution
+    x = torch.FloatTensor(game.get_state_tensor(1)).unsqueeze(0)
+    with torch.no_grad():
+        _, _, b = model(x)
+        b_probs = torch.sigmoid(b).squeeze(0).tolist()
+    
     return {
         "action": str(best_card),
         "suit": suit_map[best_card.suit],
@@ -297,5 +303,6 @@ def run_analysis(spade_range, heart_range, club_range, diamond_range,
         "is_play": is_play,
         "elapsed": f"{elapsed:.3f}",
         "info": info,
-        "log": log_output
+        "log": log_output,
+        "belief": b_probs
     }

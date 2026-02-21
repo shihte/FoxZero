@@ -652,7 +652,8 @@
                         cNode.className = `playing-card ${SUIT_COLORS[s]}`;
                         cNode.style.width = '30px'; cNode.style.height = '45px';
                         cNode.style.padding = '0'; cNode.style.justifyContent = 'center'; cNode.style.alignItems = 'center';
-                        cNode.innerHTML = `<b>${{ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[r] || r}</b>`;
+                        const rankL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+                        cNode.innerHTML = `<b>${rankL[r] || r}</b>`;
                         cardsLine.appendChild(cNode);
                     } else {
                         // Empty Slot
