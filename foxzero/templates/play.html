@@ -819,14 +819,14 @@
                             if (isActuallyHeld) {
                                 extraStyle = 'border-left: 3px solid #10b981; background: rgba(16,185,129,0.15);';
                                 checkMark = ' <span title="命中!">✅</span>';
-                            } else if (c.prob >= 0.5) {
+                            } else {
                                 extraStyle = 'border-left: 3px solid #ef4444; background: rgba(239,68,68,0.15);';
-                                checkMark = ' <span title="猜錯!">❌</span>';
+                                checkMark = ' <span title="沒這張!">❌</span>';
                             }
                         }
 
-                        // Only show non-zero probability cards to save space
-                        if (c.prob > 0.001 || (showActual && actualHand && actualHand.some(ac => ac.suit === c.suit && ac.rank === c.rank))) {
+                        // Only show non-zero probability cards to save space, or if God mode is on, show everything
+                        if (c.prob > 0.001 || showActual) {
                             cardsHtml += `<div style="font-size: 0.8rem; display: flex; justify-content: space-between; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); margin-bottom: 2px; ${extraStyle}">
                                 <span style="color:${sCol}; font-weight:bold">${sym}${rText}${checkMark}</span> 
                                 <span style="color:var(--text-muted);">${pct}%</span>
