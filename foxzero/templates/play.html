@@ -519,6 +519,9 @@
         }
 
         function hideLoading() {
+            if (document.getElementById('game-over-box').style.display === 'block') {
+                return; // Do not hide if game over screen is showing
+            }
             document.getElementById('loading-overlay').style.display = 'none';
         }
 
