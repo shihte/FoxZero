@@ -90,7 +90,7 @@ def api_game_state():
     
     # If game over, calculate final rewards
     if is_over:
-        rewards = game_session.calculateFinalRewards()
+        rewards = game_session.calculate_final_rewards()
         response["rewards"] = rewards
         
     return jsonify(response)
