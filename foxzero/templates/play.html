@@ -457,8 +457,14 @@
                 </div>
             </div>
 
-            <div class="log-panel" id="log-container">
+            <div class="log-panel" id="log-container" style="flex: 1; max-height: 40%;">
                 <div class="log-entry">歡迎來到 FoxZero 排七網頁版！請點擊右上角「開始新遊戲」。</div>
+            </div>
+
+            <div class="belief-panel" id="belief-container"
+                style="display:none; padding: 1rem; border-top: 1px solid var(--glass-border); overflow-y: auto; flex: 1;">
+                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--accent);">🧠 AI 對手手牌預測</h4>
+                <div id="belief-cards" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
             </div>
         </div>
 
@@ -488,7 +494,7 @@
         <div id="game-over-box" style="display:none;" class="game-over-modal">
             <h2>遊戲結束</h2>
             <div id="game-over-stats" style="margin-bottom: 20px; text-align: left;"></div>
-            <button class="btn" onclick="startGame()">再玩一局</button>
+            <button class="btn" onclick="window.location.reload()">再玩一局</button>
         </div>
         <div id="loading-spinner" style="display:none; flex-direction: column; align-items:center;">
             <div class="spinner"></div>
@@ -764,6 +770,56 @@
                 }
                 html += "</ul>";
                 document.getElementById('game-over-stats').innerHTML = html;
+            }
+
+            // Render Belief Predictions
+            if (data.belief && !data.is_game_over) {
+                document.getElementById('belief-container').style.display = 'block';
+                const cardsDiv = document.getElementById('belief-cards');
+                cardsDiv.innerHTML = '';
+
+                for (let p_idx = 0; p_idx < 3; p_idx++) {
+                    const pName = `Player ${p_idx + 2}`;
+                    let cardsHtml = '';
+                    const preds = [];
+
+                    for (let s = 0; s < 4; s++) { // 0=D, 1=C, 2=H, 3=S
+                        const suitOrd = [1, 2, 3, 4][s];
+                        for (let r = 0; r < 13; r++) {
+                            const prob = data.belief[p_idx][s][r];
+                            preds.push({ prob: prob, suit: suitOrd, rank: r + 1 });
+                        }
+                    }
+
+                    // Sort descending
+                    preds.sort((a, b) => b.prob - a.prob);
+
+                    // Output all possible cards. (We just limit to top 5 for UI space)
+                    for (let i = 0; i < 5 && i < preds.length; i++) {
+                        const c = preds[i];
+                        const sym = SUIT_MAP[c.suit];
+                        const sCol = SUIT_COLORS[c.suit];
+                        const rankL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+                        const rText = rankL[c.rank] || c.rank;
+                        const pct = (c.prob * 100).toFixed(1);
+
+                        cardsHtml += `<div style="font-size: 0.8rem; display: flex; justify-content: space-between; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.05);">
+                            <span style="color:${sCol}; font-weight:bold">${sym}${rText}</span> 
+                            <span style="color:var(--text-muted);">${pct}%</span>
+                        </div>`;
+                    }
+
+                    if (preds.length === 0) cardsHtml = '<div style="font-size: 0.8rem; color:var(--text-muted);">無預測資料</div>';
+
+                    cardsDiv.innerHTML += `
+                        <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem;">${pName} 最可能手牌:</div>
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                ${cardsHtml}
+                            </div>
+                        </div>
+                    `;
+                }
             }
         }
     </script>

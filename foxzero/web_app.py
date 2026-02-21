@@ -84,6 +84,20 @@ def api_game_state():
     # Player 1 covered points
     p1_covered = [c.rank for c in game_session.covered_cards[0]]
     
+    # Predict opponent hands using the Belief Head
+    b_probs = None
+    if not is_over:
+        try:
+            import torch
+            agent = get_ai_agent()
+            if agent and agent.model:
+                x = torch.FloatTensor(game_session.get_state_tensor(1)).unsqueeze(0).to(agent.device)
+                with torch.no_grad():
+                    _, _, b = agent.model(x)
+                    b_probs = torch.sigmoid(b).squeeze(0).cpu().tolist() # shape (3, 4, 13)
+        except Exception as e:
+            print("Belief prediction failed:", e)
+
     response = {
         "turn_count": game_session.turn_count,
         "current_player": curr_player,
@@ -93,9 +107,10 @@ def api_game_state():
         "board": board,
         "valid_moves": valid_moves,
         "opponents": opponents,
-        "ai_only_mode": ai_only_mode
+        "ai_only_mode": ai_only_mode,
+        "belief": b_probs
     }
-    
+
     # If game over, calculate final rewards
     if is_over:
         rewards = game_session.calculate_final_rewards()
