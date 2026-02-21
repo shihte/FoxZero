@@ -110,12 +110,11 @@ def api_make_move():
     if data and "suit" in data and "rank" in data:
         card = Card(data['suit'], data['rank'])
         is_cover = not game_session.is_valid_move(card)
-        game_session.play_card(curr, card)
+        game_session.make_move(card)
         return jsonify({"success": True, "move": {"suit": card.suit, "rank": card.rank, "is_cover": is_cover}})
     else:
-        # Pass
-        game_session.play_card(curr, None)
-        return jsonify({"success": True, "move": None})
+        # Pass (should not happen in Sevens)
+        return jsonify({"success": False, "error": "Invalid move"})
 
 @app.route('/api/game/ai_move', methods=['POST'])
 def api_ai_move():
@@ -132,11 +131,10 @@ def api_ai_move():
     
     if move:
         is_cover = not game_session.is_valid_move(move)
-        game_session.play_card(curr, move)
+        game_session.make_move(move)
         return jsonify({"success": True, "move": {"suit": move.suit, "rank": move.rank, "is_cover": is_cover}})
     else:
-        game_session.play_card(curr, None)
-        return jsonify({"success": True, "move": None})
+        return jsonify({"success": False, "move": None})
 
 # --- Analysis Endpoint ---
 
