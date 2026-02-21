@@ -319,7 +319,8 @@ void SevensGame::setPlayedCardRange(int suit, int lowRank, int highRank) {
 int SevensGame::getTurnCount() const { return turnCount; }
 void SevensGame::setTurnCount(int count) { turnCount = count; }
 
-void SevensGame::determinize(int observerPlayer) {
+void SevensGame::determinize(int observerPlayer,
+                             const std::vector<float> &beliefProbs) {
   int observerIdx = observerPlayer - 1;
   std::vector<int> opponentIndices;
   for (int i = 0; i < numberOfPlayers; ++i) {
@@ -346,42 +347,78 @@ void SevensGame::determinize(int observerPlayer) {
 
   if (unknownCards.empty())
     return;
+
   std::random_device rd;
   std::mt19937 g(rd());
 
-  int max_attempts = 5;
+  int max_attempts = 10;
   bool success = false;
 
   for (int attempt = 0; attempt < max_attempts; ++attempt) {
-    std::shuffle(unknownCards.begin(), unknownCards.end(), g);
-    int current_idx = 0;
+    std::vector<Card> pool = unknownCards;
     bool possible = true;
 
     std::vector<Hand> tempHands(numberOfPlayers);
     std::vector<std::vector<Card>> tempCovered(numberOfPlayers);
 
+    // If beliefProbs is empty, shuffle globally at start of attempt
+    if (beliefProbs.empty()) {
+      std::shuffle(pool.begin(), pool.end(), g);
+    }
+
     for (int i : opponentIndices) {
+      if (!possible)
+        break;
+
       int num_cov = coveredCounts[i];
-      for (int k = 0; k < num_cov; ++k)
-        tempCovered[i].push_back(unknownCards[current_idx++]);
-
-      int num_hand = handCounts[i];
-      for (int k = 0; k < num_hand; ++k) {
-        Card c = unknownCards[current_idx++];
-        int suitIdx = c.getSuit() - 1;
-
-        // Strict deterministic constraint: If passed on this suit, assume they
-        // don't hold any playable cards of this suit. For simplicity, assume
-        // they don't hold the suit at all to greatly narrow down the tree
-        // search space.
-        if (passRecord[i][suitIdx]) {
+      for (int k = 0; k < num_cov; ++k) {
+        if (pool.empty()) {
           possible = false;
           break;
         }
-        tempHands[i].addCard(c);
+        // For covered cards, we just pick uniformly since belief targets
+        // strictly "hand" presence.
+        std::uniform_int_distribution<> dis(0, pool.size() - 1);
+        int pick = dis(g);
+        tempCovered[i].push_back(pool[pick]);
+        pool.erase(pool.begin() + pick);
       }
-      if (!possible)
-        break;
+
+      int num_hand = handCounts[i];
+      for (int k = 0; k < num_hand; ++k) {
+        if (pool.empty()) {
+          possible = false;
+          break;
+        }
+
+        if (!beliefProbs.empty() && beliefProbs.size() == 3 * 4 * 13) {
+          // Weighted sample based on beliefProbs
+          // The tensor relates to specific player offset
+          int offset = 1;
+          if (i == (observerIdx + 2) % 4)
+            offset = 2;
+          if (i == (observerIdx + 3) % 4)
+            offset = 3;
+
+          std::vector<float> weights;
+          for (const auto &c : pool) {
+            int s_idx = c.getSuit() - 1;
+            int r_idx = c.getRank() - 1;
+            // Flat index inside 3x4x13
+            int flat_idx = (offset - 1) * 52 + s_idx * 13 + r_idx;
+            // Epsilon to ensure no strictly 0 Probability blocks distribution
+            weights.push_back(beliefProbs[flat_idx] + 0.001f);
+          }
+          std::discrete_distribution<int> ddist(weights.begin(), weights.end());
+          int pick = ddist(g);
+          tempHands[i].addCard(pool[pick]);
+          pool.erase(pool.begin() + pick);
+        } else {
+          // Without valid beliefs or weights just take from end (shuffled)
+          tempHands[i].addCard(pool.back());
+          pool.pop_back();
+        }
+      }
     }
 
     if (possible) {
@@ -395,6 +432,8 @@ void SevensGame::determinize(int observerPlayer) {
   }
 
   if (!success) {
+    // Fallback: Uniform random distribution
+    std::shuffle(unknownCards.begin(), unknownCards.end(), g);
     int current_idx = 0;
     for (int i : opponentIndices) {
       int num_cov = coveredCounts[i];

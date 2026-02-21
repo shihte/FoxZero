@@ -169,6 +169,7 @@ int run_mcts_cpp_multithreaded(const SevensGame &original_game,
   }
 
   InferenceMCTSNode root;
+  std::vector<float> root_belief(3 * 4 * 13, 0.0f);
 
   {
     std::vector<float> root_obs =
@@ -181,6 +182,10 @@ int run_mcts_cpp_multithreaded(const SevensGame &original_game,
     py::tuple res_tup = pr_tuple.cast<py::tuple>();
     py::array_t<float> p_dist = res_tup[0].cast<py::array_t<float>>();
     auto p_ptr = (const float *)p_dist.request().ptr;
+
+    py::array_t<float> b_dist = res_tup[2].cast<py::array_t<float>>();
+    auto b_ptr = (const float *)b_dist.request().ptr;
+    root_belief.assign(b_ptr, b_ptr + (3 * 4 * 13));
 
     for (const auto &card : valid_moves) {
       int idx = (card.getSuit() - 1) * 13 + (card.getRank() - 1);
@@ -203,7 +208,7 @@ int run_mcts_cpp_multithreaded(const SevensGame &original_game,
       InferenceMCTSNode *node = &root;
       auto scratch_game = original_game.clone();
       if (!god_mode) {
-        scratch_game->determinize(current_player);
+        scratch_game->determinize(current_player, root_belief);
       }
 
       std::vector<InferenceMCTSNode *> path;

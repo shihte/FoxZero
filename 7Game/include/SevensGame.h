@@ -59,7 +59,9 @@ public:
   void setPlayedCardRange(int suit, int lowRank, int highRank);
 
   // AI Inference Helper
-  void determinize(int observerPlayer);
+  void
+  determinize(int observerPlayer,
+              const std::vector<float> &beliefProbs = std::vector<float>());
   int getTurnCount() const;
   void setTurnCount(int count);
 
