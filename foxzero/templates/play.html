@@ -420,6 +420,12 @@
                     全 AI 掛機模式
                 </label>
                 <div style="width: 1px; height: 1.5rem; background: var(--glass-border); margin: 0 0.25rem;"></div>
+                <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;"
+                    title="偷看對手真實手牌對答案">
+                    <input type="checkbox" id="god-mode-toggle" onchange="if(currentState) renderState(currentState)" />
+                    上帝視角對答案
+                </label>
+                <div style="width: 1px; height: 1.5rem; background: var(--glass-border); margin: 0 0.25rem;"></div>
                 <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem;" title="MCTS 模擬次數">
                     思考深度:
                     <input type="range" id="sim-slider" min="50" max="2500" step="50" value="400"
@@ -794,8 +800,11 @@
                     // Sort descending
                     preds.sort((a, b) => b.prob - a.prob);
 
-                    // Output all possible cards. (We just limit to top 5 for UI space)
-                    for (let i = 0; i < 5 && i < preds.length; i++) {
+                    const showActual = document.getElementById('god-mode-toggle').checked;
+                    const actualHand = data.opponents[p_idx + 2]?.actual_hand;
+
+                    // Output all possible cards
+                    for (let i = 0; i < preds.length; i++) {
                         const c = preds[i];
                         const sym = SUIT_MAP[c.suit];
                         const sCol = SUIT_COLORS[c.suit];
@@ -803,18 +812,34 @@
                         const rText = rankL[c.rank] || c.rank;
                         const pct = (c.prob * 100).toFixed(1);
 
-                        cardsHtml += `<div style="font-size: 0.8rem; display: flex; justify-content: space-between; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.05);">
-                            <span style="color:${sCol}; font-weight:bold">${sym}${rText}</span> 
-                            <span style="color:var(--text-muted);">${pct}%</span>
-                        </div>`;
+                        let extraStyle = '';
+                        let checkMark = '';
+                        if (showActual && actualHand) {
+                            const isActuallyHeld = actualHand.some(ac => ac.suit === c.suit && ac.rank === c.rank);
+                            if (isActuallyHeld) {
+                                extraStyle = 'border-left: 3px solid #10b981; background: rgba(16,185,129,0.15);';
+                                checkMark = ' <span title="命中!">✅</span>';
+                            } else if (c.prob >= 0.5) {
+                                extraStyle = 'border-left: 3px solid #ef4444; background: rgba(239,68,68,0.15);';
+                                checkMark = ' <span title="猜錯!">❌</span>';
+                            }
+                        }
+
+                        // Only show non-zero probability cards to save space
+                        if (c.prob > 0.001 || (showActual && actualHand && actualHand.some(ac => ac.suit === c.suit && ac.rank === c.rank))) {
+                            cardsHtml += `<div style="font-size: 0.8rem; display: flex; justify-content: space-between; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); margin-bottom: 2px; ${extraStyle}">
+                                <span style="color:${sCol}; font-weight:bold">${sym}${rText}${checkMark}</span> 
+                                <span style="color:var(--text-muted);">${pct}%</span>
+                            </div>`;
+                        }
                     }
 
-                    if (preds.length === 0) cardsHtml = '<div style="font-size: 0.8rem; color:var(--text-muted);">無預測資料</div>';
+                    if (preds.length === 0 || cardsHtml === '') cardsHtml = '<div style="font-size: 0.8rem; color:var(--text-muted);">無預測資料</div>';
 
                     cardsDiv.innerHTML += `
-                        <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
-                            <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem;">${pName} 最可能手牌:</div>
-                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; max-height: 250px;">
+                            <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; flex-shrink: 0;">${pName} 最可能手牌:</div>
+                            <div style="display: flex; flex-direction: column; gap: 2px; overflow-y: auto; padding-right: 4px;">
                                 ${cardsHtml}
                             </div>
                         </div>

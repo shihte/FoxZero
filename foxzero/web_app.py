@@ -78,7 +78,8 @@ def api_game_state():
     for p in range(2, 5):
         opponents[str(p)] = {
             "hand_count": len(game_session.hands[p - 1].cards),
-            "covered_count": len(game_session.covered_cards[p - 1])
+            "covered_count": len(game_session.covered_cards[p - 1]),
+            "actual_hand": [{"suit": c.suit, "rank": c.rank} for c in sorted(game_session.hands[p - 1].cards, key=lambda x: (x.suit, x.rank))]
         }
         
     # Player 1 covered points
