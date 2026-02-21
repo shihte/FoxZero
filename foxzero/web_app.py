@@ -6,12 +6,140 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from foxzero.analysis import run_analysis
+from foxzero.game import SevensGame, Card
+from foxzero.play import FoxZeroAgent
 
 app = Flask(__name__, template_folder='templates')
+
+# --- Web Game Global State ---
+game_session = None
+global_ai_agent = None
+
+def get_ai_agent():
+    global global_ai_agent
+    if global_ai_agent is None:
+        model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "foxzero_weights.pth")
+        if not os.path.exists(model_path):
+            model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "foxzero_model.pth")
+        global_ai_agent = FoxZeroAgent(model_path=model_path, simulations=400, c_puct=1.0)
+    return global_ai_agent
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/play')
+def play():
+    return render_template('play.html')
+
+# --- API Endpoints ---
+@app.route('/api/game/start', methods=['POST'])
+def api_start_game():
+    global game_session
+    game_session = SevensGame()
+    game_session.deal_cards()
+    # Preload the AI model async or just trigger it
+    get_ai_agent()
+    return jsonify({"success": True, "message": "Game started"})
+
+@app.route('/api/game/state', methods=['GET'])
+def api_game_state():
+    global game_session
+    if not game_session:
+        return jsonify({"error": "No active game."})
+        
+    is_over = game_session.is_game_over()
+    curr_player = game_session.current_player_number
+    
+    # Format Player 1 hand
+    p1_hand = [{"suit": c.suit, "rank": c.rank} for c in sorted(game_session.hands[0].cards, key=lambda x: (x.suit, x.rank))]
+    
+    # Format Board
+    board = {}
+    for s in range(1, 5):
+        ps = game_session.played_cards[s - 1]
+        board[str(s)] = {
+            "lowest": ps.lowest_card.rank if ps.lowest_card else None,
+            "highest": ps.highest_card.rank if ps.highest_card else None
+        }
+        
+    # Valid moves for current player
+    valid_moves_objs = game_session.get_all_valid_moves(curr_player)
+    valid_moves = [{"suit": c.suit, "rank": c.rank, "is_cover": not game_session.is_valid_move(c)} for c in valid_moves_objs]
+    
+    # Opponent statuses
+    opponents = {}
+    for p in range(2, 5):
+        opponents[str(p)] = {
+            "hand_count": len(game_session.hands[p - 1].cards),
+            "covered_count": len(game_session.covered_cards[p - 1])
+        }
+        
+    # Player 1 covered points
+    p1_covered = [c.rank for c in game_session.covered_cards[0]]
+    
+    response = {
+        "turn_count": game_session.turn_count,
+        "current_player": curr_player,
+        "is_game_over": is_over,
+        "p1_hand": p1_hand,
+        "p1_covered": sum(p1_covered),
+        "board": board,
+        "valid_moves": valid_moves,
+        "opponents": opponents
+    }
+    
+    # If game over, calculate final rewards
+    if is_over:
+        rewards = game_session.calculateFinalRewards()
+        response["rewards"] = rewards
+        
+    return jsonify(response)
+
+@app.route('/api/game/make_move', methods=['POST'])
+def api_make_move():
+    global game_session
+    if not game_session:
+        return jsonify({"error": "No active game."})
+        
+    data = request.json
+    curr = game_session.current_player_number
+    
+    if curr != 1:
+        return jsonify({"error": "Not your turn!"})
+        
+    if data and "suit" in data and "rank" in data:
+        card = Card(data['suit'], data['rank'])
+        is_cover = not game_session.is_valid_move(card)
+        game_session.play_card(curr, card)
+        return jsonify({"success": True, "move": {"suit": card.suit, "rank": card.rank, "is_cover": is_cover}})
+    else:
+        # Pass
+        game_session.play_card(curr, None)
+        return jsonify({"success": True, "move": None})
+
+@app.route('/api/game/ai_move', methods=['POST'])
+def api_ai_move():
+    global game_session
+    if not game_session:
+        return jsonify({"error": "No active game."})
+        
+    curr = game_session.current_player_number
+    if curr == 1:
+        return jsonify({"error": "It is human's turn!"})
+        
+    agent = get_ai_agent()
+    move = agent.select_move(game_session, curr)
+    
+    if move:
+        is_cover = not game_session.is_valid_move(move)
+        game_session.play_card(curr, move)
+        return jsonify({"success": True, "move": {"suit": move.suit, "rank": move.rank, "is_cover": is_cover}})
+    else:
+        game_session.play_card(curr, None)
+        return jsonify({"success": True, "move": None})
+
+# --- Analysis Endpoint ---
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
