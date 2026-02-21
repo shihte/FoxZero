@@ -329,9 +329,12 @@ class SevensGame:
         return self.hands[player_number - 1].get_card_count() == 0
 
     def is_game_over(self) -> bool:
-        # Game ends when all cards are played/covered.
-        # 4 players * 13 cards = 52 turns.
-        return self.turn_count >= 52
+        if self.turn_count >= 52:
+            return True
+        for p in range(1, self.num_players + 1):
+            if self.has_player_won(p):
+                return True
+        return False
 
     def calculate_final_rewards(self) -> List[float]:
         """
