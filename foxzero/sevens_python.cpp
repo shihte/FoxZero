@@ -115,16 +115,13 @@ std::vector<float> get_observation_internal(const SevensGame &g,
     }
   }
 
-  const auto &pass_rec = g.getPassRecord();
+  // Ch 6-8: Opponent Covered Cards (Exact Cards)
+  const auto &covered_cards = g.getCoveredCards();
   for (int offset = 1; offset < 4; ++offset) {
     int opp_idx = (player_idx + offset) % num_players;
-    const auto &rec = pass_rec[opp_idx];
-    for (int s = 0; s < 4; ++s) {
-      if (rec[s]) {
-        for (int r = 0; r < 13; ++r) {
-          set_val(5 + offset, s, r, 1.0f);
-        }
-      }
+    const auto &c_cards = covered_cards[opp_idx];
+    for (const auto &c : c_cards) {
+      set_val(5 + offset, c.getSuit() - 1, c.getRank() - 1, 1.0f);
     }
   }
 
