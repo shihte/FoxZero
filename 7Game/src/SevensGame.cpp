@@ -63,35 +63,10 @@ std::vector<Card> SevensGame::getAllValidMoves(int playerNumber) const {
   }
 
   // COVER RULE: If no valid moves on board, ALL cards in hand are valid for
-  // covering (with suicidal prevention).
+  // covering.
   if (validMoves.empty()) {
     for (const auto &card : hands[playerIndex].getHand()) {
-      bool isSuicidal = false;
-      int suit = card.getSuit();
-      int rank = card.getRank();
-
-      if (rank > 7) {
-        // If we hold rank + 1, covering rank is suicidal
-        if (hands[playerIndex].getCard(suit, rank + 1).has_value()) {
-          isSuicidal = true;
-        }
-      } else if (rank < 7) {
-        // If we hold rank - 1, covering rank is suicidal
-        if (hands[playerIndex].getCard(suit, rank - 1).has_value()) {
-          isSuicidal = true;
-        }
-      }
-
-      if (!isSuicidal) {
-        validMoves.push_back(card);
-      }
-    }
-    // Fallback: in the impossible case all are suicidal (due to cycle, which is
-    // impossible in Sevens), allow all.
-    if (validMoves.empty()) {
-      for (const auto &card : hands[playerIndex].getHand()) {
-        validMoves.push_back(card);
-      }
+      validMoves.push_back(card);
     }
   }
 
