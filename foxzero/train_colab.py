@@ -158,6 +158,10 @@ def train_colab():
         
     print(f"Started {NUM_WORKERS} generator processes.")
     
+    # Ensure directories exist (Crucial for Google Drive mount)
+    os.makedirs(os.path.dirname(args.log_path), exist_ok=True)
+    os.makedirs(os.path.dirname(args.weights_path), exist_ok=True)
+
     if not os.path.exists(args.log_path):
         with open(args.log_path, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -228,7 +232,8 @@ def train_colab():
             if total_steps % 10 == 0:
                 print(f"Step {total_steps} | L: {loss.item():.3f} (P:{loss_p.item():.3f} V:{loss_v.item():.3f} B:{loss_b.item():.3f}) | Buffer: {len(buffer)} | T: {temp:.2f}")
                 
-                # Check if file is empty to write header
+                # Ensure directory still exists (Drive can be flaky)
+                os.makedirs(os.path.dirname(args.log_path), exist_ok=True)
                 file_empty = not os.path.exists(args.log_path) or os.path.getsize(args.log_path) == 0
                 with open(args.log_path, 'a', newline='') as f:
                     writer = csv.writer(f)
