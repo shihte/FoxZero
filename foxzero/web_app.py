@@ -19,10 +19,25 @@ ai_only_mode = False
 def get_ai_agent(simulations=400, force_reload=False):
     global global_ai_agent
     if global_ai_agent is None or force_reload:
-        model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "foxzero_weights.pth")
-        if not os.path.exists(model_path):
-            model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "foxzero_model.pth")
-        global_ai_agent = FoxZeroAgent(model_path=model_path, simulations=simulations, c_puct=1.0)
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Search paths for weights
+        possible_paths = [
+            os.path.join(root, "models", "foxzero_weights.pth"),
+            os.path.join(root, "foxzero_weights.pth"),
+            os.path.join(root, "models", "foxzero_model.pth"),
+            os.path.join(root, "foxzero_model.pth"),
+        ]
+        
+        selected_path = None
+        for p in possible_paths:
+            if os.path.exists(p):
+                selected_path = p
+                break
+        
+        if not selected_path:
+            print(f"WARNING: No weights found in {possible_paths}. AI will start with random weights.")
+            
+        global_ai_agent = FoxZeroAgent(model_path=selected_path, simulations=simulations, c_puct=1.0)
     return global_ai_agent
 
 @app.route('/')

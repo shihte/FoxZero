@@ -161,35 +161,33 @@ def train_colab():
     if not os.path.exists(args.log_path):
         with open(args.log_path, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['step', 'loss', 'loss_p', 'loss_v', 'loss_b', 'buffer_size', 'temp', 'lr'])
+            writer.writerow(['step', 'loss', 'loss_p', 'loss_v', 'loss_b', 'buffer_size', 'temp', 'lr', 'ups'])
             
     buffer = []
     games_collected = 0
     
     try:
         while True:
-            # 1. Collect Data
-            while len(buffer) < BATCH_SIZE:
-                if not queue.empty():
-                    game_samples = queue.get()
-                    buffer.extend(game_samples)
-                    games_collected += 1
-                    if games_collected % 10 == 0:
-                        print(f"Collected {games_collected} games. Buffer size: {len(buffer)}")
-                else:
-                    time.sleep(1)
-            
-            while not queue.empty() and len(buffer) < BATCH_SIZE * 4:
+            # 1. Collect Data (Ingest everything from queue)
+            while not queue.empty():
                 game_samples = queue.get()
                 buffer.extend(game_samples)
                 games_collected += 1
+                if games_collected % 10 == 0:
+                    print(f"Collected {games_collected} games. Buffer size: {len(buffer)}")
+            
+            # Wait until we have at least one batch
+            if len(buffer) < BATCH_SIZE:
+                time.sleep(1)
+                continue
+            
+            # Sliding Window: Keep only the latest 20,000 samples
+            if len(buffer) > 20000:
+                buffer = buffer[-20000:]
             
             # 2. Prepare Batch
             indices = np.random.choice(len(buffer), BATCH_SIZE, replace=False)
             batch = [buffer[i] for i in indices]
-            
-            if len(buffer) > 20000:
-                buffer = buffer[-5000:] 
                 
             states, policies, b_targets, values = zip(*batch)
             
@@ -197,6 +195,11 @@ def train_colab():
             policies_t = torch.stack([torch.tensor(p) for p in policies]).to(device)
             b_targets_t = torch.stack([torch.tensor(b) for b in b_targets]).to(device)
             values_t = torch.tensor(values, dtype=torch.float32).unsqueeze(1).to(device)
+            
+            # Audit labels (Addressing User Doubt)
+            if total_steps % 10 == 0:
+                avg_b_sum = b_targets_t.sum().item() / BATCH_SIZE
+                print(f"DEBUG | Step {total_steps} | Belief Target Sum(avg): {avg_b_sum:.2f} (Expected 10~39)")
             
             # 3. Update Curriculum Parameters
             shared_step.value = total_steps
@@ -224,9 +227,14 @@ def train_colab():
             # 5. Logging
             if total_steps % 10 == 0:
                 print(f"Step {total_steps} | L: {loss.item():.3f} (P:{loss_p.item():.3f} V:{loss_v.item():.3f} B:{loss_b.item():.3f}) | Buffer: {len(buffer)} | T: {temp:.2f}")
+                
+                # Check if file is empty to write header
+                file_empty = not os.path.exists(args.log_path) or os.path.getsize(args.log_path) == 0
                 with open(args.log_path, 'a', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), loss_b.item(), len(buffer), temp, lr])
+                    if file_empty:
+                        writer.writerow(['step', 'loss', 'loss_p', 'loss_v', 'loss_b', 'buffer_size', 'temp', 'lr', 'ups'])
+                    writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), loss_b.item(), len(buffer), temp, lr, 0.0])
                 
             # 6. Save Weights
             if total_steps % 100 == 0:

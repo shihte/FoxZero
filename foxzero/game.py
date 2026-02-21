@@ -463,13 +463,13 @@ class SevensGame:
             # CNN input expects spatial. Usually we fill the whole plane.
             state[2 + offset, :, :] = val
             
-        # Ch 6-8: Opponent Covered Cards (Exact Cards)
+        # Ch 6-8: Opponent Pass Record (Suit-level missing information)
         for offset in range(1, 4):
             opp_idx = (player_idx + offset) % self.num_players
-            c_cards = self.covered_cards[opp_idx]
-            for c in c_cards:
-                s_idx, r_idx = c.to_tensor_index()
-                state[5 + offset, s_idx, r_idx] = 1.0
+            opp_passes = self.pass_record[opp_idx]
+            for s_idx in range(4):
+                if opp_passes[s_idx]:
+                    state[5 + offset, s_idx, :] = 1.0
                     
         # Ch 9: Dealer Indicator
         # "全 1=我是莊家"

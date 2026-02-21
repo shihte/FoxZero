@@ -1,852 +1,693 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FoxZero: 排七 (Sevens)</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>FoxZero | Play Sevens</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f172a;
-            --table-color: #064e3b;
-            --table-gradient: linear-gradient(135deg, #064e3b 0%, #022c22 100%);
-            --card-bg: #ffffff;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #10b981;
-            --danger: #ef4444;
-            --glass-bg: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --bg: #0f172a;
+            --glass: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+            --card-bg: #f8fafc;
+            --card-text: #1e293b;
+            --spade: #1e293b;
+            --heart: #ef4444;
+            --club: #1e293b;
+            --diamond: #f97316;
+            --overlay: rgba(15, 23, 42, 0.8);
         }
 
-        body,
-        html {
+        * {
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
-            background: var(--bg-color);
-            color: var(--text-main);
-            height: 100vh;
-            overflow: hidden;
+        }
+
+        body {
+            background: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.05) 0, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
             display: flex;
             flex-direction: column;
         }
 
-        /* Header */
+        /* --- Header --- */
         header {
-            padding: 1rem 2rem;
-            background: rgba(15, 23, 42, 0.8);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
             backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--glass-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 10;
-        }
-
-        header h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: linear-gradient(to right, #34d399, #10b981);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .btn {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .btn:hover {
-            background: #059669;
-            transform: translateY(-1px);
-        }
-
-        .btn:disabled {
-            background: var(--text-muted);
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Main Game Area */
-        .game-layout {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 300px;
             background: rgba(15, 23, 42, 0.5);
-            border-right: 1px solid var(--glass-border);
-            display: flex;
-            flex-direction: column;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        .opponents-panel {
-            padding: 1rem;
-            border-bottom: 1px solid var(--glass-border);
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .opponent-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 8px;
-            padding: 1rem;
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            transition: transform 0.2s;
+            gap: 0.5rem;
+        }
+
+        .status-badge {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            padding: 0.4rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-dim);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #22c55e;
+        }
+
+        /* --- Layout --- */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 320px 1fr 320px;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* --- Components --- */
+        .panel {
+            background: var(--glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1.2rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* --- Opponents Panel --- */
+        .opponent-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
         }
 
         .opponent-card.active {
             border-color: var(--accent);
-            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-            transform: scale(1.02);
+            background: rgba(56, 189, 248, 0.05);
+            box-shadow: 0 0 15px var(--accent-glow);
         }
 
-        .opponent-info .name {
+        .opp-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .opp-name {
             font-weight: 600;
-            font-size: 1.1rem;
-            margin-bottom: 0.25rem;
         }
 
-        .opponent-info .stats {
-            font-size: 0.875rem;
-            color: var(--text-muted);
+        .opp-stats {
+            font-size: 0.85rem;
+            color: var(--text-dim);
         }
 
-        .opponent-avatar {
-            width: 40px;
-            height: 40px;
-            background: #1e293b;
-            border-radius: 50%;
+        .hand-stub-container {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
+            gap: 2px;
+            flex-wrap: wrap;
         }
 
-        /* Log Panel */
-        .log-panel {
-            flex: 1;
-            padding: 1rem;
-            overflow-y: auto;
+        .hand-stub {
+            width: 10px;
+            height: 15px;
+            background: var(--accent);
+            opacity: 0.5;
+            border-radius: 2px;
+        }
+
+        /* --- Board (Central) --- */
+        .board-container {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .log-entry {
-            font-size: 0.875rem;
-            padding: 0.5rem;
-            background: var(--glass-bg);
-            border-radius: 4px;
-            border-left: 3px solid #3b82f6;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .log-entry.error {
-            border-left-color: var(--danger);
-        }
-
-        .log-entry.success {
-            border-left-color: var(--accent);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(5px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Table */
-        .table-area {
-            flex: 1;
-            background: var(--table-gradient);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-
-        .board {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 2rem;
-            padding: 2rem;
+            gap: 1rem;
         }
 
         .suit-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: 60px 1fr;
             align-items: center;
             gap: 1rem;
-            width: 100%;
-            max-width: 800px;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 1rem;
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 1rem;
+            padding: 0.75rem;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
         }
 
         .suit-icon {
             font-size: 2rem;
-            width: 40px;
-            text-align: center;
-        }
-
-        .suit-icon.red {
-            color: #f43f5e;
-        }
-
-        .suit-icon.black {
-            color: #f8fafc;
-        }
-
-        /* Contrast against dark green */
-
-        .cards-line {
             display: flex;
-            gap: 0.25rem;
-            flex: 1;
             justify-content: center;
+            opacity: 0.8;
         }
 
-        .card-slot {
-            width: 40px;
-            height: 60px;
-            border: 1px dashed rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
+        .cards-row {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.3);
+            gap: 0.5rem;
+            min-height: 80px;
+            flex-wrap: wrap;
         }
 
-        /* Playing Card Component */
-        .playing-card {
-            width: 60px;
-            height: 90px;
+        /* --- My Hand (Bottom) --- */
+        .player-area {
+            grid-column: 1 / -1;
+            margin-top: 1rem;
+        }
+
+        .hand-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            min-height: 140px;
+            flex-wrap: wrap;
+        }
+
+        /* --- Card Aesthetics --- */
+        .card {
+            width: 70px;
+            height: 100px;
             background: var(--card-bg);
-            border-radius: 6px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-radius: 0.5rem;
             display: flex;
             flex-direction: column;
-            padding: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            justify-content: center;
+            align-items: center;
+            color: var(--card-text);
+            font-weight: 800;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             position: relative;
-            transform-origin: bottom center;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
+            user-select: none;
         }
 
-        .playing-card.red {
-            color: #f43f5e;
-        }
-
-        .playing-card.black {
-            color: #1e293b;
-        }
-
-        .playing-card:hover {
+        .card:hover {
             transform: translateY(-15px) scale(1.05);
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.4);
             z-index: 10;
         }
 
-        .playing-card.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none !important;
+        .card.playable {
+            box-shadow: 0 0 12px #22c55e;
+            border: 2px solid #22c55e;
         }
 
-        .playing-card.cover-mode {
-            background: #cbd5e1;
+        .card.can-cover {
+            opacity: 0.8;
+            filter: grayscale(0.5);
         }
 
-        .playing-card.cover-mode::after {
-            content: "蓋牌";
+        .card.spade {
+            color: var(--spade);
+        }
+
+        .card.heart {
+            color: var(--heart);
+        }
+
+        .card.club {
+            color: var(--club);
+        }
+
+        .card.diamond {
+            color: var(--diamond);
+        }
+
+        .card .rank {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(239, 68, 68, 0.9);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: bold;
+            top: 5px;
+            left: 5px;
+            font-size: 0.8rem;
         }
 
-        .card-top {
-            font-size: 1.2rem;
-            font-weight: 700;
-            line-height: 1;
+        .card .suit-mini {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 0.8rem;
         }
 
-        .card-center {
+        /* --- Log Panel --- */
+        .log-content {
             flex: 1;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            color: var(--text-dim);
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-        }
-
-        .card-bottom {
-            font-size: 1.2rem;
-            font-weight: 700;
-            line-height: 1;
-            transform: rotate(180deg);
-        }
-
-        /* Player Hand Area */
-        .player-area {
-            height: 160px;
-            background: rgba(15, 23, 42, 0.9);
-            border-top: 1px solid var(--glass-border);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 1rem;
-            position: relative;
-        }
-
-        .hand-container {
-            display: flex;
-            gap: -10px;
-            /* Overlap cards slightly */
-            margin-top: 10px;
-        }
-
-        .hand-container .playing-card {
-            margin-left: -20px;
-        }
-
-        .hand-container .playing-card:first-child {
-            margin-left: 0;
-        }
-
-        .player-status {
-            position: absolute;
-            left: 2rem;
-            top: 1rem;
-            display: flex;
-            flex-direction: column;
+            flex-direction: column-reverse;
+            /* Latest at bottom but scrolling preserved */
             gap: 0.5rem;
         }
 
-        .status-badge {
-            background: var(--glass-bg);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            border: 1px solid var(--glass-border);
+        .log-entry {
+            padding: 0.4rem 0.6rem;
+            border-radius: 0.4rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 2px solid transparent;
         }
 
-        /* Overlay */
-        #loading-overlay {
+        .log-entry.ai {
+            border-left-color: var(--accent);
+        }
+
+        .log-entry.human {
+            border-left-color: #f59e0b;
+        }
+
+        .log-entry.system {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* --- Overlay --- */
+        #game-over-overlay {
             position: fixed;
             top: 0;
             left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 23, 42, 0.8);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            backdrop-filter: blur(5px);
+            width: 100%;
+            height: 100%;
+            background: var(--overlay);
+            backdrop-filter: blur(15px);
+            z-index: 1000;
             display: none;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--glass-border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .game-over-modal {
-            background: var(--bg-color);
-            border: 1px solid var(--glass-border);
-            padding: 2rem;
-            border-radius: 12px;
+            /* Flex when over */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             text-align: center;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background: var(--glass);
+            padding: 3rem;
+            border-radius: 2rem;
+            border: 1px solid var(--border);
+            max-width: 500px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 0.8rem 2rem;
+            border-radius: 1rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        /* --- Utilities --- */
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+
+            0%,
+            20% {
+                content: '.';
+            }
+
+            40% {
+                content: '..';
+            }
+
+            60% {
+                content: '...';
+            }
+
+            80%,
+            100% {
+                content: '';
+            }
         }
     </style>
 </head>
 
 <body>
 
-    <!-- Header -->
     <header>
-        <h1>FoxZero: 排七</h1>
-        <div style="display:flex; align-items:center; gap: 1rem;">
-            <!-- AI Config -->
-            <div
-                style="display:flex; align-items:center; gap: 0.5rem; background: var(--glass-bg); padding: 0.5rem; border-radius: 6px; border: 1px solid var(--glass-border);">
-                <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;">
-                    <input type="checkbox" id="ai-mode-toggle" />
-                    全 AI 掛機模式
-                </label>
-                <div style="width: 1px; height: 1.5rem; background: var(--glass-border); margin: 0 0.25rem;"></div>
-                <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem; cursor: pointer;"
-                    title="偷看對手真實手牌對答案">
-                    <input type="checkbox" id="god-mode-toggle" onchange="if(currentState) renderState(currentState)" />
-                    上帝視角對答案
-                </label>
-                <div style="width: 1px; height: 1.5rem; background: var(--glass-border); margin: 0 0.25rem;"></div>
-                <label style="display:flex; align-items:center; gap: 0.25rem; font-size: 0.85rem;" title="MCTS 模擬次數">
-                    思考深度:
-                    <input type="range" id="sim-slider" min="50" max="2500" step="50" value="400"
-                        oninput="document.getElementById('sim-val').innerText=this.value" style="width: 80px;" />
-                    <span id="sim-val" class="text-accent"
-                        style="min-width: 30px; font-weight: bold; color: var(--accent);">400</span>
-                </label>
-            </div>
-            <button id="btn-start" class="btn" onclick="startGame()">開始新遊戲</button>
+        <div class="logo">
+            <span>🦊</span> FOX ZERO
+        </div>
+        <div class="status-badge" id="turn-indicator">
+            <div class="status-dot"></div>
+            Connecting to core...
         </div>
     </header>
 
-    <div class="game-layout">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <div class="opponents-panel" id="opponents-container">
-                <!-- Injected via JS -->
-                <div class="opponent-card" id="opp-2">
-                    <div class="opponent-info">
-                        <div class="name">AI Player 2</div>
-                        <div class="stats">手牌: 13 | 蓋牌: 0</div>
+    <main>
+        <!-- Left: Game Info & Log -->
+        <div class="panel">
+            <h2>📜 Game Log</h2>
+            <div class="log-content" id="log">
+                <div class="log-entry system">Welcome to FoxZero Sevens. Good luck!</div>
+            </div>
+        </div>
+
+        <!-- Center: The Board -->
+        <div class="board-container">
+            <div class="panel" style="flex:1">
+                <h2>🎴 The Board</h2>
+                <div id="board-suits">
+                    <!-- Spades -->
+                    <div class="suit-row" data-suit="1">
+                        <div class="suit-icon spade">♠️</div>
+                        <div class="cards-row" id="suit-1"></div>
                     </div>
+                    <!-- Hearts -->
+                    <div class="suit-row" data-suit="2">
+                        <div class="suit-icon heart">♥️</div>
+                        <div class="cards-row" id="suit-2"></div>
+                    </div>
+                    <!-- Clubs -->
+                    <div class="suit-row" data-suit="3">
+                        <div class="suit-icon club">♣️</div>
+                        <div class="cards-row" id="suit-3"></div>
+                    </div>
+                    <!-- Diamonds -->
+                    <div class="suit-row" data-suit="4">
+                        <div class="suit-icon diamond">♦️</div>
+                        <div class="cards-row" id="suit-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom: Player Hand -->
+            <div class="panel player-area">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem">
+                    <h2>👐 My Hand (Player 1)</h2>
+                    <div id="p1-stats" class="status-badge">Covered: 0 pts</div>
+                </div>
+                <div class="hand-container" id="my-hand">
+                    <!-- Cards will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Opponents -->
+        <div class="panel">
+            <h2>🤖 FoxZero AI Units</h2>
+            <div id="opponents-list">
+                <div class="opponent-card" id="opp-2">
+                    <div class="opp-header">
+                        <span class="opp-name">Fox Alpha (P2)</span>
+                        <span class="opp-stats" id="opp-2-meta">13 cards</span>
+                    </div>
+                    <div class="hand-stub-container" id="opp-2-hand"></div>
                 </div>
                 <div class="opponent-card" id="opp-3">
-                    <div class="opponent-info">
-                        <div class="name">AI Player 3</div>
-                        <div class="stats">手牌: 13 | 蓋牌: 0</div>
+                    <div class="opp-header">
+                        <span class="opp-name">Fox Beta (P3)</span>
+                        <span class="opp-stats" id="opp-3-meta">13 cards</span>
                     </div>
+                    <div class="hand-stub-container" id="opp-3-hand"></div>
                 </div>
                 <div class="opponent-card" id="opp-4">
-                    <div class="opponent-info">
-                        <div class="name">AI Player 4</div>
-                        <div class="stats">手牌: 13 | 蓋牌: 0</div>
+                    <div class="opp-header">
+                        <span class="opp-name">Fox Gamma (P4)</span>
+                        <span class="opp-stats" id="opp-4-meta">13 cards</span>
                     </div>
+                    <div class="hand-stub-container" id="opp-4-hand"></div>
                 </div>
             </div>
 
-            <div class="log-panel" id="log-container" style="flex: 1; max-height: 40%;">
-                <div class="log-entry">歡迎來到 FoxZero 排七網頁版！請點擊右上角「開始新遊戲」。</div>
-            </div>
-
-            <div class="belief-panel" id="belief-container"
-                style="display:none; padding: 1rem; border-top: 1px solid var(--glass-border); overflow-y: auto; flex: 1;">
-                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--accent);">🧠 AI 對手手牌預測</h4>
-                <div id="belief-cards" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+            <div style="margin-top:auto">
+                <button class="btn" style="width:100%; background: #475569; color: white"
+                    onclick="restartGame()">Restart Session</button>
             </div>
         </div>
+    </main>
 
-        <!-- Table -->
-        <div class="table-area">
-            <div class="board" id="board-container">
-                <!-- Suits injected via JS -->
-            </div>
-
-            <!-- Player Hand -->
-            <div class="player-area">
-                <div class="player-status">
-                    <div class="status-badge" id="player-turn-badge">等待開始...</div>
-                    <div class="status-badge">蓋牌扣分: <span id="player-penalty" class="text-danger">0</span></div>
-                </div>
-
-                <h3 style="margin:0; font-size:1rem; color:var(--text-muted)">您的手牌 (Player 1)</h3>
-                <div class="hand-container" id="player-hand">
-                    <!-- Cards injected via JS -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay">
-        <div id="game-over-box" style="display:none;" class="game-over-modal">
-            <h2>遊戲結束</h2>
-            <div id="game-over-stats" style="margin-bottom: 20px; text-align: left;"></div>
-            <button class="btn" onclick="window.location.reload()">再玩一局</button>
-        </div>
-        <div id="loading-spinner" style="display:none; flex-direction: column; align-items:center;">
-            <div class="spinner"></div>
-            <p style="margin-top:1rem;" id="loading-text">AI 思考中...</p>
+    <div id="game-over-overlay">
+        <div class="modal-content">
+            <h1 id="game-result-title">Victory!</h1>
+            <p id="game-result-details" style="margin: 1rem 0; color: var(--text-dim)"></p>
+            <div id="rewards-table" style="margin: 1rem 0; font-size: 0.9rem"></div>
+            <button class="btn" onclick="restartGame()">Play Again</button>
         </div>
     </div>
 
     <script>
-        const SUIT_MAP = { 1: '♦️', 2: '♣️', 3: '❤️', 4: '♠️' };
-        const SUIT_COLORS = { 1: 'red', 2: 'black', 3: 'red', 4: 'black' };
+        const SUIT_SYMBOLS = {1: '♠', 2: '♥', 3: '♣', 4: '♦'};
+        const SUIT_CLASSES = {1: 'spade', 2: 'heart', 3: 'club', 4: 'diamond'};
+        const RANK_LABELS = {1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: 'J', 12: 'Q', 13: 'K'};
 
-        let currentState = null;
+        let gameState = null;
+        let isMoving = false;
 
-        function logMsg(msg, type = 'info') {
-            const logs = document.getElementById('log-container');
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            entry.innerText = msg;
-            logs.appendChild(entry);
-            logs.scrollTop = logs.scrollHeight;
+        async function init() {
+            await restartGame();
+            setInterval(checkAutoMove, 1500);
         }
 
-        function showLoading(text) {
-            document.getElementById('loading-overlay').style.display = 'flex';
-            document.getElementById('loading-spinner').style.display = 'flex';
-            document.getElementById('game-over-box').style.display = 'none';
-            if (text) document.getElementById('loading-text').innerText = text;
+        async function restartGame() {
+            document.getElementById('game-over-overlay').style.display = 'none';
+            addLog("System", "Starting new game session...", "system");
+            const res = await fetch('/api/game/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ai_only: false, simulations: 800})
+            });
+            await refreshState();
         }
 
-        function hideLoading() {
-            if (document.getElementById('game-over-box').style.display === 'block') {
-                return; // Do not hide if game over screen is showing
+        async function refreshState() {
+            const res = await fetch('/api/game/state');
+            gameState = await res.json();
+            renderBoard();
+            renderHand();
+            renderOpponents();
+            updateStatus();
+
+            if (gameState.is_game_over) {
+                showGameOver();
             }
-            document.getElementById('loading-overlay').style.display = 'none';
         }
 
-        async function startGame() {
-            const aiOnly = document.getElementById('ai-mode-toggle').checked;
-            const sims = parseInt(document.getElementById('sim-slider').value);
-
-            showLoading("正在初始化遊戲...");
-            try {
-                const res = await fetch('/api/game/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ai_only: aiOnly, simulations: sims })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('log-container').innerHTML = '';
-                    logMsg(`遊戲已開始！ (深度: ${sims}${aiOnly ? ' | 全AI模式' : ''})`, "success");
-                    await fetchState();
-                }
-            } catch (e) {
-                logMsg("無法開始遊戲：" + e.message, "error");
+        function updateStatus() {
+            const el = document.getElementById('turn-indicator');
+            if (gameState.is_game_over) {
+                el.innerHTML = `<div class="status-dot" style="background:#ef4444; box-shadow:0 0 8px #ef4444"></div> Game Over`;
+                return;
             }
-            hideLoading();
+            if (gameState.current_player === 1) {
+                el.innerHTML = `<div class="status-dot" style="background:#f59e0b; box-shadow:0 0 8px #f59e0b"></div> Your Turn`;
+            } else {
+                el.innerHTML = `<div class="status-dot loading-dots"></div> AI P${gameState.current_player} is thinking`;
+            }
         }
 
-        async function fetchState() {
-            try {
-                const res = await fetch('/api/game/state');
-                const data = await res.json();
-                if (data.error) {
-                    logMsg(data.error, "error");
-                    return;
-                }
-                currentState = data;
-                renderState(data);
-
-                if (!data.is_game_over) {
-                    if (data.current_player !== 1 || data.ai_only_mode) {
-                        // Let AI move
-                        setTimeout(triggerAIMove, 1000);
+        function renderBoard() {
+            for (let s = 1; s <= 4; s++) {
+                const row = document.getElementById(`suit-${s}`);
+                row.innerHTML = '';
+                const info = gameState.board[s];
+                if (info.lowest !== null) {
+                    // Render range
+                    for (let r = info.lowest; r <= info.highest; r++) {
+                        row.appendChild(createCardElement(s, r, false, false));
                     }
                 }
-            } catch (e) {
-                console.error(e);
             }
         }
 
-        function formatCardStr(suit, rank) {
-            const rankStr = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank] || rank;
-            return `${SUIT_MAP[suit]}${rankStr}`;
-        }
+        function renderHand() {
+            const container = document.getElementById('my-hand');
+            container.innerHTML = '';
+            
+            // Map valid moves for easy lookup
+            const validMap = {};
+            gameState.valid_moves.forEach(m => {
+               validMap[`${m.suit}-${m.rank}`] = m.is_cover;
+            });
 
-        async function triggerAIMove() {
-            showLoading(`Player ${currentState.current_player} (AI) 思考中...`);
-            try {
-                const res = await fetch('/api/game/ai_move', { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
-                    let moveStr = "Pass";
-                    if (data.move) {
-                        moveStr = formatCardStr(data.move.suit, data.move.rank);
-                        if (data.move.is_cover) moveStr += " (蓋牌)";
-                        else moveStr = `出牌 ${moveStr}`;
-                    }
-                    logMsg(`Player ${currentState.current_player} ${moveStr}`);
-                    await fetchState();
-                } else {
-                    logMsg(data.error, "error");
+            gameState.p1_hand.forEach(c => {
+                const isPlayable = (`${c.suit}-${c.rank}` in validMap);
+                const isCover = isPlayable ? validMap[`${c.suit}-${c.rank}`] : false;
+                
+                const el = createCardElement(c.suit, c.rank, isPlayable, isCover);
+                if (isPlayable && gameState.current_player === 1 && !isMoving) {
+                    el.onclick = () => makeMove(c.suit, c.rank);
                 }
-            } catch (e) {
-                console.error(e);
-            }
-            hideLoading();
+                container.appendChild(el);
+            });
+
+            document.getElementById('p1-stats').innerText = `Covered: ${gameState.p1_covered} pts`;
         }
 
-        async function humanMove(suit, rank) {
-            showLoading("送出動作...");
-            try {
-                const res = await fetch('/api/game/make_move', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ suit: suit, rank: rank })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    let moveStr = "Pass";
-                    if (data.move) {
-                        moveStr = formatCardStr(data.move.suit, data.move.rank);
-                        if (data.move.is_cover) moveStr += " (蓋牌)";
-                        else moveStr = `出牌 ${moveStr}`;
-                    }
-                    logMsg(`您 (Player 1) ${moveStr}`, "success");
-                    await fetchState();
-                } else {
-                    logMsg(data.error, "error");
+        function renderOpponents() {
+            for (let p = 2; p <= 4; p++) {
+                const opp = gameState.opponents[p];
+                const card = document.getElementById(`opp-${p}`);
+                const meta = document.getElementById(`opp-${p}-meta`);
+                const hand = document.getElementById(`opp-${p}-hand`);
+
+                card.className = (gameState.current_player === p) ? 'opponent-card active' : 'opponent-card';
+                meta.innerText = `${opp.hand_count} cards | ${opp.covered_count} covered`;
+                
+                hand.innerHTML = '';
+                for (let i = 0; i < opp.hand_count; i++) {
+                    const stub = document.createElement('div');
+                    stub.className = 'hand-stub';
+                    hand.appendChild(stub);
                 }
-            } catch (e) {
-                console.error(e);
             }
-            hideLoading();
         }
 
-        function createCardNode(suit, rank, isValid = false, isCover = false, onClick = null) {
+        function createCardElement(suit, rank, isPlayable, isCover) {
             const div = document.createElement('div');
-            const color = SUIT_COLORS[suit];
-            const rankStr = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank] || rank;
-            const icon = SUIT_MAP[suit];
-
-            let classes = `playing-card ${color}`;
-            if (isCover) classes += ' cover-mode';
-            if (!isValid && !isCover) classes += ' disabled';
-            div.className = classes;
-
+            div.className = `card ${SUIT_CLASSES[suit]}`;
+            if (isPlayable) {
+                div.classList.add(isCover ? 'can-cover' : 'playable');
+            }
+            
             div.innerHTML = `
-                <div class="card-top">${rankStr}</div>
-                <div class="card-center">${icon}</div>
-                <div class="card-bottom">${rankStr}</div>
+                <div class="rank">${RANK_LABELS[rank]}</div>
+                <div>${SUIT_SYMBOLS[suit]}</div>
+                <div class="suit-mini">${SUIT_SYMBOLS[suit]}</div>
             `;
-
-            if (onClick && isCover) div.onclick = onClick;
-            else if (onClick && isValid) div.onclick = onClick;
-
             return div;
         }
 
-        function renderState(data) {
-            // Update Opponents
-            for (let p = 2; p <= 4; p++) {
-                const opp = data.opponents[p];
-                const cardEl = document.getElementById(`opp-${p}`);
-                cardEl.querySelector('.stats').innerText = `手牌: ${opp.hand_count} | 蓋牌: ${opp.covered_count}`;
-                if (data.current_player === p) cardEl.classList.add('active');
-                else cardEl.classList.remove('active');
-            }
-
-            // Update Board
-            const boardContainer = document.getElementById('board-container');
-            boardContainer.innerHTML = '';
-            [1, 2, 3, 4].forEach(s => {
-                const row = document.createElement('div');
-                row.className = 'suit-row';
-
-                const icon = document.createElement('div');
-                icon.className = `suit-icon ${SUIT_COLORS[s]}`;
-                icon.innerText = SUIT_MAP[s];
-                row.appendChild(icon);
-
-                const cardsLine = document.createElement('div');
-                cardsLine.className = 'cards-line';
-
-                const sData = data.board[s];
-                for (let r = 1; r <= 13; r++) {
-                    if (sData.lowest !== null && r >= sData.lowest && r <= sData.highest) {
-                        // Played
-                        const cNode = document.createElement('div');
-                        cNode.className = `playing-card ${SUIT_COLORS[s]}`;
-                        cNode.style.width = '30px'; cNode.style.height = '45px';
-                        cNode.style.padding = '0'; cNode.style.justifyContent = 'center'; cNode.style.alignItems = 'center';
-                        const rankL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
-                        cNode.innerHTML = `<b>${rankL[r] || r}</b>`;
-                        cardsLine.appendChild(cNode);
-                    } else {
-                        // Empty Slot
-                        const slot = document.createElement('div');
-                        slot.className = 'card-slot';
-                        // Keep slot tight
-                        slot.style.width = '30px'; slot.style.height = '45px';
-                        cardsLine.appendChild(slot);
-                    }
-                }
-
-                row.appendChild(cardsLine);
-                boardContainer.appendChild(row);
+        async function makeMove(suit, rank) {
+            if (isMoving) return;
+            isMoving = true;
+            
+            addLog("Player 1", `Plays ${SUIT_SYMBOLS[suit]}${RANK_LABELS[rank]}`, "human");
+            
+            const res = await fetch('/api/game/make_move', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({suit, rank})
             });
+            
+            isMoving = false;
+            await refreshState();
+        }
 
-            // Update Player 1 Status
-            document.getElementById('player-penalty').innerText = data.p1_covered;
-            const badge = document.getElementById('player-turn-badge');
-            if (data.current_player === 1) {
-                badge.innerText = "⭐ 輪到您出牌";
-                badge.style.borderColor = "var(--accent)";
-                badge.style.color = "var(--accent)";
-            } else {
-                badge.innerText = `等待 Player ${data.current_player}...`;
-                badge.style.borderColor = "var(--glass-border)";
-                badge.style.color = "var(--text-main)";
-            }
-
-            // Update Hand
-            const handContainer = document.getElementById('player-hand');
-            handContainer.innerHTML = '';
-
-            if (data.ai_only_mode) {
-                handContainer.style.pointerEvents = 'none';
-                handContainer.style.opacity = '0.7';
-            } else {
-                handContainer.style.pointerEvents = 'auto';
-                handContainer.style.opacity = '1';
-            }
-
-            // Check if human must pass
-            let humanHasPlayable = false;
-
-            data.p1_hand.forEach(c => {
-                // Find in valid moves
-                const validEntry = data.valid_moves.find(v => v.suit === c.suit && v.rank === c.rank);
-                let isValid = false;
-                let isCover = false;
-
-                if (validEntry) {
-                    isValid = true;
-                    isCover = validEntry.is_cover;
-                    humanHasPlayable = true;
+        async function checkAutoMove() {
+            if (gameState && !gameState.is_game_over && gameState.current_player !== 1 && !isMoving) {
+                isMoving = true;
+                const p = gameState.current_player;
+                
+                const res = await fetch('/api/game/ai_move', { method: 'POST' });
+                const result = await res.json();
+                
+                if (result.success && result.move) {
+                    const m = result.move;
+                    const action = m.is_cover ? "Covers" : "Plays";
+                    addLog(`Fox AI P${p}`, `${action} ${SUIT_SYMBOLS[m.suit]}${RANK_LABELS[m.rank]}`, "ai");
                 }
-
-                const onPlay = () => humanMove(c.suit, c.rank);
-                const cNode = createCardNode(c.suit, c.rank, isValid, isCover, onPlay);
-                handContainer.appendChild(cNode);
-            });
-
-            // If human turn and no cards to play or cover (shouldn't happen unless hand empty which means game over)
-            // Wait, Sevens rules: if no valid move, you MUST cover. get_all_valid_moves handles this.
-            // But if there are ABSOLUTELY no valid_moves (empty list), then it's a forced Pass.
-            if (data.current_player === 1 && data.valid_moves.length === 0 && !data.is_game_over) {
-                logMsg("您無牌可出，系統自動 Pass。", "info");
-                setTimeout(() => humanMove(0, 0), 1000); // Send dummy move to pass
-            }
-
-            // Handle Game Over
-            if (data.is_game_over) {
-                document.getElementById('loading-overlay').style.display = 'flex';
-                document.getElementById('loading-spinner').style.display = 'none';
-                document.getElementById('game-over-box').style.display = 'block';
-
-                let html = "<ul>";
-                for (let p = 1; p <= 4; p++) {
-                    const r = data.rewards[p - 1];
-                    html += `<li><b>Player ${p}</b>: 總點數得分 => 獎勵 ${r.toFixed(4)} ${(r > 0 ? '🏆' : '')}</li>`;
-                }
-                html += "</ul>";
-                document.getElementById('game-over-stats').innerHTML = html;
-            }
-
-            // Render Belief Predictions
-            if (data.belief && !data.is_game_over) {
-                document.getElementById('belief-container').style.display = 'block';
-                const cardsDiv = document.getElementById('belief-cards');
-                cardsDiv.innerHTML = '';
-
-                for (let p_idx = 0; p_idx < 3; p_idx++) {
-                    const pName = `Player ${p_idx + 2}`;
-                    let cardsHtml = '';
-                    const preds = [];
-
-                    for (let s = 0; s < 4; s++) { // 0=D, 1=C, 2=H, 3=S
-                        const suitOrd = [1, 2, 3, 4][s];
-                        for (let r = 0; r < 13; r++) {
-                            const prob = data.belief[p_idx][s][r];
-                            preds.push({ prob: prob, suit: suitOrd, rank: r + 1 });
-                        }
-                    }
-
-                    // Sort descending
-                    preds.sort((a, b) => b.prob - a.prob);
-
-                    const showActual = document.getElementById('god-mode-toggle').checked;
-                    const actualHand = data.opponents[p_idx + 2]?.actual_hand;
-
-                    // Output all possible cards
-                    for (let i = 0; i < preds.length; i++) {
-                        const c = preds[i];
-                        const sym = SUIT_MAP[c.suit];
-                        const sCol = SUIT_COLORS[c.suit];
-                        const rankL = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
-                        const rText = rankL[c.rank] || c.rank;
-                        const pct = (c.prob * 100).toFixed(1);
-
-                        let extraStyle = '';
-                        let checkMark = '';
-                        if (showActual && actualHand) {
-                            const isActuallyHeld = actualHand.some(ac => ac.suit === c.suit && ac.rank === c.rank);
-                            if (isActuallyHeld) {
-                                extraStyle = 'border-left: 3px solid #10b981; background: rgba(16,185,129,0.15);';
-                                checkMark = ' <span title="命中!">✅</span>';
-                            } else {
-                                extraStyle = 'border-left: 3px solid #ef4444; background: rgba(239,68,68,0.15);';
-                                checkMark = ' <span title="沒這張!">❌</span>';
-                            }
-                        }
-
-                        // Only show non-zero probability cards to save space, or if God mode is on, show everything
-                        if (c.prob > 0.001 || showActual) {
-                            cardsHtml += `<div style="font-size: 0.8rem; display: flex; justify-content: space-between; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); margin-bottom: 2px; ${extraStyle}">
-                                <span style="color:${sCol}; font-weight:bold">${sym}${rText}${checkMark}</span> 
-                                <span style="color:var(--text-muted);">${pct}%</span>
-                            </div>`;
-                        }
-                    }
-
-                    if (preds.length === 0 || cardsHtml === '') cardsHtml = '<div style="font-size: 0.8rem; color:var(--text-muted);">無預測資料</div>';
-
-                    cardsDiv.innerHTML += `
-                        <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; max-height: 250px;">
-                            <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; flex-shrink: 0;">${pName} 最可能手牌:</div>
-                            <div style="display: flex; flex-direction: column; gap: 2px; overflow-y: auto; padding-right: 4px;">
-                                ${cardsHtml}
-                            </div>
-                        </div>
-                    `;
-                }
+                
+                isMoving = false;
+                await refreshState();
             }
         }
+
+        function addLog(who, msg, type) {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<strong>${who}:</strong> ${msg}`;
+            log.prepend(entry);
+        }
+
+        function showGameOver() {
+            const overlay = document.getElementById('game-over-overlay');
+            const title = document.getElementById('game-result-title');
+            const details = document.getElementById('game-result-details');
+            const rewardsDiv = document.getElementById('rewards-table');
+            
+            overlay.style.display = 'flex';
+            
+            const rewards = gameState.rewards;
+            const myReward = rewards.normalizedRewards[0];
+            
+            title.innerText = myReward > 0 ? "🏆 Victory!" : (myReward < 0 ? "💀 Defeat" : "🤝 Draw");
+            details.innerText = `Tournament score calculation complete.`;
+            
+            let html = '<table style="width:100%; border-collapse:collapse">';
+            html += '<tr><th style="text-align:left">Player</th><th style="text-align:right">Penalty</th><th style="text-align:right">Reward</th></tr>';
+            
+            for(let i=0; i<4; i++) {
+                const isMe = (i === 0);
+                html += `<tr style="${isMe ? 'color:var(--accent); font-weight:bold' : ''}">
+                    <td>${isMe ? 'You (P1)' : 'Fox AI P'+(i+1)}</td>
+                    <td style="text-align:right">${rewards.rawPenalties[i]}</td>
+                    <td style="text-align:right">${rewards.normalizedRewards[i].toFixed(2)}</td>
+                </tr>`;
+            }
+            html += '</table>';
+            rewardsDiv.innerHTML = html;
+        }
+
+        window.onload = init;
     </script>
 </body>
 
