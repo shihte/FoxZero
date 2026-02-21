@@ -111,6 +111,7 @@ def api_make_move():
         card = Card(data['suit'], data['rank'])
         is_cover = not game_session.is_valid_move(card)
         game_session.make_move(card)
+        game_session.next_player()
         return jsonify({"success": True, "move": {"suit": card.suit, "rank": card.rank, "is_cover": is_cover}})
     else:
         # Pass (should not happen in Sevens)
@@ -132,6 +133,7 @@ def api_ai_move():
     if move:
         is_cover = not game_session.is_valid_move(move)
         game_session.make_move(move)
+        game_session.next_player()
         return jsonify({"success": True, "move": {"suit": move.suit, "rank": move.rank, "is_cover": is_cover}})
     else:
         return jsonify({"success": False, "move": None})
