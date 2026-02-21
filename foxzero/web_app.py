@@ -63,11 +63,10 @@ def api_start_game():
     get_ai_agent(simulations=simulations, force_reload=True)
     return jsonify({"success": True, "message": "Game started"})
 
-@app.route('/api/game/state', methods=['GET'])
-def api_game_state():
+def format_game_state():
     global game_session
     if not game_session:
-        return jsonify({"error": "No active game."})
+        return {"error": "No active game."}
         
     is_over = game_session.is_game_over()
     curr_player = game_session.current_player_number
@@ -132,7 +131,11 @@ def api_game_state():
         rewards = game_session.calculate_final_rewards()
         response["rewards"] = rewards
         
-    return jsonify(response)
+    return response
+
+@app.route('/api/game/state', methods=['GET'])
+def api_game_state():
+    return jsonify(format_game_state())
 
 @app.route('/api/game/make_move', methods=['POST'])
 def api_make_move():
@@ -151,7 +154,11 @@ def api_make_move():
         is_cover = not game_session.is_valid_move(card)
         game_session.make_move(card)
         game_session.next_player()
-        return jsonify({"success": True, "move": {"suit": card.suit, "rank": card.rank, "is_cover": is_cover}})
+        return jsonify({
+            "success": True, 
+            "move": {"suit": card.suit, "rank": card.rank, "is_cover": is_cover},
+            "new_state": format_game_state()
+        })
     else:
         # Pass (should not happen in Sevens)
         return jsonify({"success": False, "error": "Invalid move"})
@@ -173,7 +180,11 @@ def api_ai_move():
         is_cover = not game_session.is_valid_move(move)
         game_session.make_move(move)
         game_session.next_player()
-        return jsonify({"success": True, "move": {"suit": move.suit, "rank": move.rank, "is_cover": is_cover}})
+        return jsonify({
+            "success": True, 
+            "move": {"suit": move.suit, "rank": move.rank, "is_cover": is_cover},
+            "new_state": format_game_state()
+        })
     else:
         return jsonify({"success": False, "move": None})
 

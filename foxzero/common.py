@@ -374,7 +374,7 @@ def run_simulation_fast(game_cls, model, temperature=1.0, dirichlet_alpha=None, 
             inp = torch.tensor(state_tensor, dtype=torch.float32).unsqueeze(0).to(device)
             
             with torch.no_grad():
-                p_logits, _ = model(inp)
+                p_logits, _, _ = model(inp)
                 
             # Logits -> Probs
             p_probs = torch.softmax(p_logits, dim=1).cpu().numpy().flatten()

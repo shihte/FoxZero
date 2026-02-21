@@ -16,8 +16,9 @@ from foxzero.common import FoxZeroResNet, run_simulation_fast
 from foxzero.game import SevensGame
 
 # Configuration for Colab T4
-NUM_WORKERS = 2 
+NUM_WORKERS = max(4, os.cpu_count() if hasattr(os, 'cpu_count') else 4)
 BATCH_SIZE = 512
+TRAIN_INTENSITY = 4 # How many batches to train for every data collection cycle
 
 import argparse
 import csv
@@ -169,6 +170,8 @@ def train_colab():
             
     buffer = []
     games_collected = 0
+    start_time = time.time()
+    steps_since_log = 0
     
     try:
         while True:
@@ -177,6 +180,12 @@ def train_colab():
                 game_samples = queue.get()
                 buffer.extend(game_samples)
                 games_collected += 1
+                
+                # Debug: Audit Belief Targets (Should be ~39.0 at start of game)
+                if len(game_samples) > 0:
+                    first_belief_sum = np.sum(game_samples[0][2])
+                    print(f"Game saved. Steps: {len(game_samples)}, Initial Belief Sum: {first_belief_sum:.1f}")
+
                 if games_collected % 10 == 0:
                     print(f"Collected {games_collected} games. Buffer size: {len(buffer)}")
             
@@ -189,48 +198,57 @@ def train_colab():
             if len(buffer) > 20000:
                 buffer = buffer[-20000:]
             
-            # 2. Prepare Batch
-            indices = np.random.choice(len(buffer), BATCH_SIZE, replace=False)
-            batch = [buffer[i] for i in indices]
+            # 2. Prepare and Train (Multiple Batches for Intensity)
+            for _ in range(TRAIN_INTENSITY):
+                indices = np.random.choice(len(buffer), BATCH_SIZE, replace=False)
+                batch = [buffer[i] for i in indices]
+                    
+                states, policies, b_targets, values = zip(*batch)
                 
-            states, policies, b_targets, values = zip(*batch)
-            
-            states_t = torch.stack([torch.from_numpy(s) for s in states]).to(device)
-            policies_t = torch.stack([torch.tensor(p) for p in policies]).to(device)
-            b_targets_t = torch.stack([torch.tensor(b) for b in b_targets]).to(device)
-            values_t = torch.tensor(values, dtype=torch.float32).unsqueeze(1).to(device)
-            
-            # Audit labels (Addressing User Doubt)
-            if total_steps % 10 == 0:
-                avg_b_sum = b_targets_t.sum().item() / BATCH_SIZE
-                print(f"DEBUG | Step {total_steps} | Belief Target Sum(avg): {avg_b_sum:.2f} (Expected 10~39)")
-            
-            # 3. Update Curriculum Parameters
-            shared_step.value = total_steps
-            temp, dirichlet, lr, freeze_backbone = get_curriculum_params(total_steps)
-            
-            optimizer.param_groups[0]['lr'] = 1e-6 if freeze_backbone else lr # Backbone
-            optimizer.param_groups[1]['lr'] = lr # Belief Head
-            
-            # 4. Optimization
-            optimizer.zero_grad()
-            with torch.amp.autocast('cuda'):
-                p_logits, v_pred, b_pred = model(states_t)
-                loss_p = torch.nn.functional.cross_entropy(p_logits, policies_t)
-                loss_v = torch.nn.functional.mse_loss(v_pred, values_t)
-                loss_b = torch.nn.functional.binary_cross_entropy_with_logits(b_pred, b_targets_t)
+                states_t = torch.stack([torch.from_numpy(s) for s in states]).to(device)
+                policies_t = torch.stack([torch.tensor(p) for p in policies]).to(device)
+                b_targets_t = torch.stack([torch.tensor(b) for b in b_targets]).to(device)
+                values_t = torch.tensor(values, dtype=torch.float32).unsqueeze(1).to(device)
                 
-                loss = loss_p + loss_v + (0.5 * loss_b)
+                # 3. Update Curriculum Parameters
+                shared_step.value = total_steps
+                temp, dirichlet, lr, freeze_backbone = get_curriculum_params(total_steps)
                 
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+                optimizer.param_groups[0]['lr'] = 1e-6 if freeze_backbone else lr # Backbone
+                optimizer.param_groups[1]['lr'] = lr # Belief Head
+                
+                # 4. Optimization
+                optimizer.zero_grad()
+                with torch.amp.autocast('cuda'):
+                    p_logits, v_pred, b_pred = model(states_t)
+                    loss_p = torch.nn.functional.cross_entropy(p_logits, policies_t)
+                    loss_v = torch.nn.functional.mse_loss(v_pred, values_t)
+                    loss_b = torch.nn.functional.binary_cross_entropy_with_logits(b_pred, b_targets_t)
+                    
+                    loss = loss_p + loss_v + (0.5 * loss_b)
+                    
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                
+                total_steps += 1
+                steps_since_log += 1
+                
+                # Audit labels
+                if total_steps % 10 == 0:
+                    avg_b_sum = b_targets_t.sum().item() / BATCH_SIZE
+                    print(f"DEBUG | Step {total_steps} | Belief Target Sum(avg): {avg_b_sum:.2f} (Expected 10~39)")
             
-            total_steps += 1
-            
-            # 5. Logging
-            if total_steps % 10 == 0:
-                print(f"Step {total_steps} | L: {loss.item():.3f} (P:{loss_p.item():.3f} V:{loss_v.item():.3f} B:{loss_b.item():.3f}) | Buffer: {len(buffer)} | T: {temp:.2f}")
+            # 5. Logging and Performance Review
+            if total_steps % 10 < TRAIN_INTENSITY: # Log roughly every 10 steps
+                elapsed = time.time() - start_time
+                ups = steps_since_log / elapsed if elapsed > 0 else 0.0
+                
+                print(f"Step {total_steps} | L: {loss.item():.3f} (P:{loss_p.item():.3f} V:{loss_v.item():.3f} B:{loss_b.item():.3f}) | UPS: {ups:.2f} | Buffer: {len(buffer)}")
+                
+                # Reset counters for UPS
+                start_time = time.time()
+                steps_since_log = 0
                 
                 # Ensure directory still exists (Drive can be flaky)
                 os.makedirs(os.path.dirname(args.log_path), exist_ok=True)
@@ -239,7 +257,7 @@ def train_colab():
                     writer = csv.writer(f)
                     if file_empty:
                         writer.writerow(['step', 'loss', 'loss_p', 'loss_v', 'loss_b', 'buffer_size', 'temp', 'lr', 'ups'])
-                    writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), loss_b.item(), len(buffer), temp, lr, 0.0])
+                    writer.writerow([total_steps, loss.item(), loss_p.item(), loss_v.item(), loss_b.item(), len(buffer), temp, lr, ups])
                 
             # 6. Save Weights
             if total_steps % 100 == 0:

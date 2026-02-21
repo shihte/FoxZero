@@ -92,8 +92,9 @@ def train(args):
         pi_tensor = torch.FloatTensor(np.array(pi_batch)).to(device)
         z_tensor = torch.FloatTensor(np.array(z_batch)).unsqueeze(1).to(device)
         
+        # Optimization
         optimizer.zero_grad()
-        p_logits, v_pred = model(s_tensor)
+        p_logits, v_pred, _ = model(s_tensor)
         
         log_probs = F.log_softmax(p_logits, dim=1)
         p_loss = -torch.sum(pi_tensor * log_probs) / args.batch_size
