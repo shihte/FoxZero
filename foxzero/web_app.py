@@ -37,7 +37,6 @@ def play():
 def api_start_game():
     global game_session
     game_session = SevensGame()
-    game_session.deal_cards()
     # Preload the AI model async or just trigger it
     get_ai_agent()
     return jsonify({"success": True, "message": "Game started"})
